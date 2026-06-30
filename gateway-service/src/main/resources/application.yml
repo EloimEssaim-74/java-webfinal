@@ -41,6 +41,13 @@ spring:
           predicates:
             - Path=/api/comments,/api/comments/**,/api/articles/*/like
 
+    sentinel:
+      # Load rules eagerly at startup (no first-request delay)
+      eager: true
+      # Sentinel Dashboard (optional, for visual monitoring; must differ from gateway port 8080)
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:18080}
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}

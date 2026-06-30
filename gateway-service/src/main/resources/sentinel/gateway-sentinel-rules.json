@@ -1,0 +1,44 @@
+[
+  {
+    "_comment": "User service — QPS 100/s per IP (login/register etc.)",
+    "resource": "user-service",
+    "resourceMode": 0,
+    "count": 100.0,
+    "grade": 1,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 0,
+    "paramItem": {
+      "parseStrategy": 3,
+      "fieldName": "X-Real-IP"
+    }
+  },
+  {
+    "_comment": "Article service — QPS 50/s per IP (read-heavy, moderate load)",
+    "resource": "article-service",
+    "resourceMode": 0,
+    "count": 50.0,
+    "grade": 1,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 0,
+    "paramItem": {
+      "parseStrategy": 3,
+      "fieldName": "X-Real-IP"
+    }
+  },
+  {
+    "_comment": "Interact service — QPS 30/s per IP (comments/likes, lower tolerance)",
+    "resource": "interact-service",
+    "resourceMode": 0,
+    "count": 30.0,
+    "grade": 1,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 0,
+    "paramItem": {
+      "parseStrategy": 3,
+      "fieldName": "X-Real-IP"
+    }
+  }
+]
