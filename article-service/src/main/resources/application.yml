@@ -46,6 +46,13 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
     map-underscore-to-camel-case: true
 
+# 热搜榜单配置
+hot-articles:
+  cache-ttl-seconds: 1         # Caffeine 本地缓存 TTL（秒）
+  decay-cron: "0 0 3 * * ?"    # 每日凌晨3点执行热度衰减
+  decay-factor: 0.9            # 衰减因子：每日分数乘以 0.9
+  decay-min-score: 1.0         # 分数低于此阈值自动移除
+
 logging:
   level:
     com.kb.article: DEBUG
