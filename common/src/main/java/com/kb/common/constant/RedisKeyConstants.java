@@ -10,6 +10,7 @@ public class RedisKeyConstants {
     public static final String LIKE_DEDUP = "like:article:%d:user:%d";
 
     public static final String HOT_ARTICLES = "hot_articles";
+    public static final String HOT_ARTICLES_REFRESH_CHANNEL = "hot_articles:refresh";
 
     public static final String COMMENT_EVENTS = "comment:events";
 

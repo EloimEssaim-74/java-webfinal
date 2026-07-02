@@ -41,6 +41,22 @@ public class LikeServiceImpl implements LikeService {
                 String.valueOf(articleId),
                 3);
 
-        log.debug("Like recorded: articleId={}, userId={}", articleId, userId);
+        // 4. Publish cache refresh notification to all article-service instances
+        publishRefresh(articleId);
+
+        log.debug("Like recorded: articleId={}, userId={}, heat +3", articleId, userId);
+    }
+
+    /**
+     * 通过 Redis Pub/Sub 通知所有 article-service 实例刷新本地缓存.
+     */
+    private void publishRefresh(Long articleId) {
+        try {
+            redisTemplate.convertAndSend(
+                    RedisKeyConstants.HOT_ARTICLES_REFRESH_CHANNEL,
+                    "like:" + articleId);
+        } catch (Exception e) {
+            log.warn("Failed to publish hot articles refresh: {}", e.getMessage());
+        }
     }
 }
