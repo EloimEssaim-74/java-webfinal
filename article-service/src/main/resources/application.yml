@@ -5,15 +5,48 @@ spring:
   application:
     name: article-service
   datasource:
+    # 读写分离开关（Stage 9 — 生产环境启用）
+    read-write-splitting:
+      enabled: ${DB_READ_WRITE_SPLITTING:false}
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/kb_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:root123}
     driver-class-name: com.mysql.cj.jdbc.Driver
     type: com.alibaba.druid.pool.DruidDataSource
+    # 从库数据源（读写分离启用时使用）
+    slave:
+      url: jdbc:mysql://${DB_SLAVE_HOST:localhost}:${DB_SLAVE_PORT:3306}/kb_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
+      username: ${DB_USER:root}
+      password: ${DB_PASSWORD:root123}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      type: com.alibaba.druid.pool.DruidDataSource
     druid:
-      initial-size: 5
-      min-idle: 5
-      max-active: 20
+      initial-size: 10
+      min-idle: 10
+      max-active: 50
+      max-wait: 3000
+      # 连接有效性检测
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      validation-query: SELECT 1
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      # 连接泄漏检测
+      remove-abandoned: true
+      remove-abandoned-timeout: 180
+      log-abandoned: true
+      # 过滤器
+      filters: stat,wall
+      filter:
+        stat:
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          enabled: true
+          config:
+            multi-statement-allow: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}

@@ -40,6 +40,14 @@ spring:
           uri: lb://interact-service
           predicates:
             - Path=/api/comments,/api/comments/**,/api/articles/*/like
+        # AI Assistant Service (SSE 流式 — 长超时)
+        - id: ai-assistant-service
+          uri: lb://ai-assistant-service
+          predicates:
+            - Path=/api/ai/**
+          metadata:
+            connect-timeout: 5000
+            response-timeout: 300000
 
     sentinel:
       # Load rules eagerly at startup (no first-request delay)
