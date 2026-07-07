@@ -1,91 +1,13 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>知识库 — 内容发布与创作平台</title>
-<link rel="stylesheet" href="/css/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230066FF'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='white'>K</text></svg>">
-</head>
-<body>
-
-<!-- ============================================ -->
-<!-- HEADER -->
-<!-- ============================================ -->
-<header id="header">
-  <div class="header-inner">
-    <a href="#/" class="logo" data-link>知识库</a>
-    <nav class="nav-links">
-      <a href="#/" data-link class="nav-item active">首页</a>
-      <a href="#/trending" data-link class="nav-item">热搜</a>
-      <a href="#/ai" data-link class="nav-item">AI 写作</a>
-    </nav>
-    <div class="header-right">
-      <button id="btn-write" class="btn btn-primary btn-sm">写文章</button>
-      <div id="user-area"></div>
-    </div>
-  </div>
-</header>
-
-<!-- ============================================ -->
-<!-- TOAST CONTAINER -->
-<!-- ============================================ -->
-<div id="toast-container"></div>
-
-<!-- ============================================ -->
-<!-- MAIN CONTENT -->
-<!-- ============================================ -->
-<main id="main"></main>
-
-<!-- ============================================ -->
-<!-- LOGIN/REGISTER MODAL -->
-<!-- ============================================ -->
-<div id="modal-auth" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-card">
-    <span class="modal-close">&times;</span>
-    <div class="modal-tabs">
-      <button class="tab active" data-tab="login">登录</button>
-      <button class="tab" data-tab="register">注册</button>
-    </div>
-    <form id="form-login" class="auth-form">
-      <input type="text" name="username" placeholder="用户名" required minlength="3">
-      <input type="password" name="password" placeholder="密码" required minlength="6">
-      <button type="submit" class="btn btn-primary btn-block">登录</button>
-      <p class="form-msg"></p>
-    </form>
-    <form id="form-register" class="auth-form hidden">
-      <input type="text" name="username" placeholder="用户名 (3-50字符)" required minlength="3" maxlength="50">
-      <input type="password" name="password" placeholder="密码 (6-100字符)" required minlength="6" maxlength="100">
-      <button type="submit" class="btn btn-primary btn-block">注册</button>
-      <p class="form-msg"></p>
-    </form>
-  </div>
-</div>
-
-<!-- ============================================ -->
-<!-- ARTICLE EDITOR MODAL -->
-<!-- ============================================ -->
-<div id="modal-editor" class="modal hidden">
-  <div class="modal-backdrop"></div>
-  <div class="modal-card modal-lg">
-    <span class="modal-close">&times;</span>
-    <h2 id="editor-title">写文章</h2>
-    <form id="form-editor">
-      <input type="text" name="title" placeholder="文章标题" required maxlength="200" class="editor-title-input">
-      <textarea name="content" placeholder="分享你的知识..." required class="editor-content-input"></textarea>
-      <div class="editor-actions">
-        <button type="button" id="btn-save-draft" class="btn btn-outline">保存草稿</button>
-        <button type="submit" class="btn btn-primary">发布文章</button>
-      </div>
-      <p class="form-msg"></p>
-    </form>
-  </div>
-</div>
-
-<!-- SCRIPTS -->
-<script src="/js/api.js"></script>
-<script src="/js/components.js"></script>
-<script src="/js/app.js"></script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend-react</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
