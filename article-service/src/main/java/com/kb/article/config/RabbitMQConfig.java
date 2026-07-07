@@ -46,8 +46,15 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding publishBinding() {
+    public Binding publishToTagBinding() {
         return BindingBuilder.bind(tagQueue())
+                .to(articleTopicExchange())
+                .with(PUBLISH_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding publishToComplianceBinding() {
+        return BindingBuilder.bind(complianceQueue())
                 .to(articleTopicExchange())
                 .with(PUBLISH_ROUTING_KEY);
     }

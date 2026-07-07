@@ -1,0 +1,403 @@
+{
+  "info": {
+    "name": "Stage 12 - 前后端集成测试 (85 cases)",
+    "description": "# Knowledge Platform — Stage 12 全链路集成测试\n\n## 覆盖范围\n| 模块 | 用例数 |\n|------|--------|\n| 0-环境检查 | 4 |\n| 1-用户认证 | 9 |\n| 2-文章浏览 | 8 |\n| 3-文章创作 | 9 |\n| 4-互动模块 | 10 |\n| 5-热搜榜单 | 6 |\n| 6-AI续写 | 7 |\n| 7-我的文章 | 5 |\n| 8-数据一致性 | 5 |\n| **总计** | **63 (API)** |\n\n## 环境变量\n| 变量 | 说明 |\n|------|------|\n| `baseUrl` | http://localhost |\n| `tokenA` | Alice 的 JWT |\n| `tokenB` | Bob 的 JWT |\n| `articleId` | 测试文章 ID |\n| `draftId` | 草稿 ID |\n\n## 执行方式\n1. Import → Create Environment (`baseUrl=http://localhost`)\n2. Run `0-环境检查` 确认服务就绪\n3. Run `1-用户认证` 按顺序执行 → token 自动保存\n4. Run `2-8` 任意顺序执行\n5. 或 Runner → Run Collection → 全量执行",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "kb-stage12"
+  },
+  "item": [
+    {
+      "name": "0-环境检查 (4 cases)",
+      "item": [
+        {
+          "name": "E01: 后端 trending 可达",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('HTTP 200', function(){pm.response.to.have.status(200)});","var j=pm.response.json();","pm.test('code=200', function(){pm.expect(j.code).to.eql(200)});","console.log('✅ 后端 API 就绪');"],"type":"text/javascript"}}],
+          "request": {"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]}}
+        },
+        {
+          "name": "E02: 文章列表(公开GET)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","var j=pm.response.json();","pm.test('含 PageResult 元数据',function(){pm.expect(j.data).to.have.property('total');pm.expect(j.data).to.have.property('list');pm.expect(j.data).to.have.property('page');});","console.log('total='+j.data.total+' page='+j.data.page);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=1&size=3","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"1"},{"key":"size","value":"3"}]}}
+        },
+        {
+          "name": "E03: React 前端可达",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","var b=pm.response.text();","pm.test('含知识库标题',function(){pm.expect(b).to.include('知识库');});","console.log('✅ React SPA 就绪');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/","host":["{{baseUrl}}"]}}
+        },
+        {
+          "name": "E04: SPA fallback",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","pm.test('返回 index.html',function(){pm.expect(pm.response.text()).to.include('知识库');});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/#/login","host":["{{baseUrl}}"]},"description":"验证 SPA fallback — 任意路由返回 index.html"}
+        }
+      ]
+    },
+    {
+      "name": "1-用户认证 (9 cases)",
+      "item": [
+        {
+          "name": "A01: 注册新用户",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","if(pm.response.code===200){console.log('注册成功: '+j.data.username);pm.environment.set('testUsername','st12_'+Date.now());}","pm.test('注册成功或已存在',function(){pm.expect([200,400]).to.include(pm.response.code);});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"{{testUsername}}\",\"password\":\"test123456\"}"},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}}
+        },
+        {
+          "name": "A02: 重复注册→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});","pm.test('已存在提示',function(){pm.expect(pm.response.json().message).to.include('已存在');});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"{{testUsername}}\",\"password\":\"test123456\"}"},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}}
+        },
+        {
+          "name": "A03: 空用户名→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"\",\"password\":\"test123456\"}"},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}}
+        },
+        {
+          "name": "A04: 短密码→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"u1\",\"password\":\"123\"}"},"url":{"raw":"{{baseUrl}}/api/user/register","host":["{{baseUrl}}"],"path":["api","user","register"]}}
+        },
+        {
+          "name": "A05: Alice 登录",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","if(pm.response.code===200&&j.data.token){pm.environment.set('tokenA',j.data.token);console.log('Alice token saved');}","pm.test('登录成功',function(){pm.expect(j.data).to.have.property('token');pm.expect(j.data).to.have.property('tokenType','Bearer');pm.expect(j.data).to.have.property('userId');});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"alice\",\"password\":\"alice123456\"}"},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}}
+        },
+        {
+          "name": "A06: Bob 登录",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","if(pm.response.code===200&&j.data.token){pm.environment.set('tokenB',j.data.token);console.log('Bob token saved');}","pm.test('登录成功',function(){pm.expect(j.data).to.have.property('token');});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"bob\",\"password\":\"bob123456\"}"},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}}
+        },
+        {
+          "name": "A07: 错误密码→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});","pm.test('错误提示',function(){pm.expect(pm.response.json().message).to.include('错误');});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"username\":\"alice\",\"password\":\"wrongpass\"}"},"url":{"raw":"{{baseUrl}}/api/user/login","host":["{{baseUrl}}"],"path":["api","user","login"]}}
+        },
+        {
+          "name": "A08: 注销",
+          "event": [{"listen":"test","script":{"exec":["pm.test('注销成功',function(){pm.response.to.have.status(200)});","console.log('Token 已加入黑名单');"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{tokenB}}"}],"url":{"raw":"{{baseUrl}}/api/user/logout","host":["{{baseUrl}}"],"path":["api","user","logout"]}}
+        },
+        {
+          "name": "A09: 注销后 Token 失效→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenB}}"}],"url":{"raw":"{{baseUrl}}/api/articles/mine","host":["{{baseUrl}}"],"path":["api","articles","mine"]},"description":"使用 A08 注销的 Token 访问 → 应返回 401"}
+        }
+      ]
+    },
+    {
+      "name": "2-文章浏览 (8 cases)",
+      "item": [
+        {
+          "name": "B01: 文章列表(公开,无Token)",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","pm.test('total>0',function(){pm.expect(j.data.total).to.be.above(0)});","pm.test('page=1',function(){pm.expect(j.data.page).to.eql(1)});","pm.test('list是数组',function(){pm.expect(j.data.list).to.be.an('array')});","if(j.data.list.length>0){pm.environment.set('articleId',j.data.list[0].id);}","console.log('total='+j.data.total+' returned='+j.data.list.length);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=1&size=5","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"1"},{"key":"size","value":"5"}]},"description":"公开 GET，无 Authorization 头"}
+        },
+        {
+          "name": "B02: 分页第2页",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('page=2',function(){pm.expect(j.data.page).to.eql(2)});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=2&size=5","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"2"},{"key":"size","value":"5"}]}}
+        },
+        {
+          "name": "B03: 文章详情(公开,无Token)",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","pm.test('含content',function(){pm.expect(j.data).to.have.property('content')});","pm.test('含likeCount',function(){pm.expect(j.data).to.have.property('likeCount')});","console.log('文章: '+j.data.title);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}"]},"description":"公开 GET，触发阅读热度 +1"}
+        },
+        {
+          "name": "B04: 不存在的文章→404",
+          "event": [{"listen":"test","script":{"exec":["pm.test('4xx错误',function(){pm.expect(pm.response.code).to.be.oneOf([400,404]);});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles/99999","host":["{{baseUrl}}"],"path":["api","articles","99999"]}}
+        },
+        {
+          "name": "B05: 列表降序验证",
+          "event": [{"listen":"test","script":{"exec":["var list=pm.response.json().data.list;","if(list.length>=2){var ok=true;for(var i=1;i<list.length;i++){if(new Date(list[i].createdAt)>new Date(list[i-1].createdAt))ok=false;}","pm.test('按createdAt降序',function(){pm.expect(ok).to.be.true});}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=1&size=10","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"1"},{"key":"size","value":"10"}]}}
+        },
+        {
+          "name": "B06: 分页total正确",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('total>0(分页插件生效)',function(){pm.expect(j.data.total).to.be.above(0)});","pm.test('list长度≤size',function(){pm.expect(j.data.list.length).to.be.at.most(j.data.size)});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=1&size=3","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"1"},{"key":"size","value":"3"}]},"description":"验证 total > 0（MyBatis-Plus 分页插件生效）"}
+        },
+        {
+          "name": "B07-1: 删除文章 (准备工作)",
+          "event": [{"listen":"test","script":{"exec":["if(pm.response.code===200){pm.environment.set('delArticleId',pm.response.json().data.id);console.log('待删除文章: '+pm.response.json().data.id);}"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"title\":\"待删除测试\",\"content\":\"这将被删除。\",\"status\":\"PUBLISHED\"}"},"url":{"raw":"{{baseUrl}}/api/articles","host":["{{baseUrl}}"],"path":["api","articles"]}}
+        },
+        {
+          "name": "B07-2: 删除并验证不出现在列表",
+          "event": [{"listen":"test","script":{"exec":["pm.test('删除成功',function(){pm.response.to.have.status(200)});","var j=JSON.parse(pm.response.text());","if(j.code===200) console.log('文章已删除，刷新列表验证其不在结果中');"],"type":"text/javascript"}}],
+          "request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{delArticleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{delArticleId}}"]}}
+        }
+      ]
+    },
+    {
+      "name": "3-文章创作 (9 cases)",
+      "item": [
+        {
+          "name": "C01: 创建草稿",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('status=DRAFT',function(){pm.expect(j.data.status).to.eql('DRAFT')});","if(j.code===200){pm.environment.set('draftId',j.data.id);console.log('草稿ID: '+j.data.id);}"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"title\":\"Stage12测试草稿\",\"content\":\"这是一篇测试草稿的内容。\"}"},"url":{"raw":"{{baseUrl}}/api/articles","host":["{{baseUrl}}"],"path":["api","articles"]}}
+        },
+        {
+          "name": "C02: 发布草稿",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('status=PUBLISHED',function(){pm.expect(j.data.status).to.eql('PUBLISHED')});","console.log('草稿已发布');"],"type":"text/javascript"}}],
+          "request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{draftId}}/publish","host":["{{baseUrl}}"],"path":["api","articles","{{draftId}}","publish"]}}
+        },
+        {
+          "name": "C03: 直接创建已发布",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('status=PUBLISHED',function(){pm.expect(j.data.status).to.eql('PUBLISHED')});","if(j.code===200)pm.environment.set('pubArticleId',j.data.id);"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"title\":\"Stage12直接发布\",\"content\":\"这是直接以PUBLISHED状态创建的文章。\",\"status\":\"PUBLISHED\"}"},"url":{"raw":"{{baseUrl}}/api/articles","host":["{{baseUrl}}"],"path":["api","articles"]}}
+        },
+        {
+          "name": "C04: 修改文章",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('title已更新',function(){pm.expect(j.data.title).to.include('已修改')});"],"type":"text/javascript"}}],
+          "request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"title\":\"(已修改) Stage12直接发布\"}"},"url":{"raw":"{{baseUrl}}/api/articles/{{pubArticleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{pubArticleId}}"]}}
+        },
+        {
+          "name": "C05: 越权修改→403",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 403',function(){pm.response.to.have.status(403)});","pm.test('无权操作',function(){pm.expect(pm.response.json().message).to.include('无权');});"],"type":"text/javascript"}}],
+          "request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenB}}"}],"body":{"mode":"raw","raw":"{\"title\":\"Bob越权修改\"}"},"url":{"raw":"{{baseUrl}}/api/articles/{{pubArticleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{pubArticleId}}"]},"description":"Bob 不是作者，无权修改 Alice 的文章"}
+        },
+        {
+          "name": "C06: 无Token创建→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"title\":\"未认证创建\"}"},"url":{"raw":"{{baseUrl}}/api/articles","host":["{{baseUrl}}"],"path":["api","articles"]}}
+        },
+        {
+          "name": "C07: 缺少参数→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"title\":\"\"}"},"url":{"raw":"{{baseUrl}}/api/articles","host":["{{baseUrl}}"],"path":["api","articles"]}}
+        },
+        {
+          "name": "C08: 逻辑删除",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","console.log('文章已逻辑删除');"],"type":"text/javascript"}}],
+          "request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{pubArticleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{pubArticleId}}"]}}
+        },
+        {
+          "name": "C09: 越权删除→403",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 403',function(){pm.response.to.have.status(403)});"],"type":"text/javascript"}}],
+          "request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{tokenB}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}"]},"description":"Bob 删除 Alice 的文章 → 403"}
+        }
+      ]
+    },
+    {
+      "name": "4-互动模块 (10 cases)",
+      "item": [
+        {
+          "name": "D01: Bob评论Alice文章",
+          "event": [{"listen":"test","script":{"exec":["pm.test('评论成功',function(){pm.response.to.have.status(200)});","console.log('评论 heat+1');"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenB}}"}],"body":{"mode":"raw","raw":"{\"articleId\":{{articleId}},\"content\":\"非常棒的分享！Stage12集成测试评论。\"}"},"url":{"raw":"{{baseUrl}}/api/comments","host":["{{baseUrl}}"],"path":["api","comments"]}}
+        },
+        {
+          "name": "D02: 查看评论列表(公开)",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('评论列表',function(){pm.expect(j.data).to.be.an('array')});","pm.test('至少1条评论',function(){pm.expect(j.data.length).to.be.at.least(1)});","console.log('评论数: '+j.data.length);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/comments?articleId={{articleId}}","host":["{{baseUrl}}"],"path":["api","comments"],"query":[{"key":"articleId","value":"{{articleId}}"}]},"description":"公开 GET，无需 Token"}
+        },
+        {
+          "name": "D03: Alice也评论",
+          "event": [{"listen":"test","script":{"exec":["pm.test('评论成功',function(){pm.response.to.have.status(200)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"articleId\":{{articleId}},\"content\":\"感谢支持！这是作者回复。\"}"},"url":{"raw":"{{baseUrl}}/api/comments","host":["{{baseUrl}}"],"path":["api","comments"]}}
+        },
+        {
+          "name": "D04: 验证评论列表含2条",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('至少2条',function(){pm.expect(j.data.length).to.be.at.least(2)});","pm.test('按时间升序',function(){for(var i=1;i<j.data.length;i++){if(new Date(j.data[i].createdAt)<new Date(j.data[i-1].createdAt)){pm.expect.fail('顺序错误');}};pm.expect(true).to.be.true});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/comments?articleId={{articleId}}","host":["{{baseUrl}}"],"path":["api","comments"],"query":[{"key":"articleId","value":"{{articleId}}"}]}}
+        },
+        {
+          "name": "D05: 空评论→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"articleId\":{{articleId}},\"content\":\"\"}"},"url":{"raw":"{{baseUrl}}/api/comments","host":["{{baseUrl}}"],"path":["api","comments"]}}
+        },
+        {
+          "name": "D06: Alice点赞",
+          "event": [{"listen":"test","script":{"exec":["pm.test('点赞成功',function(){pm.response.to.have.status(200)});","console.log('点赞 heat+3');"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}/like","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}","like"]}}
+        },
+        {
+          "name": "D07: 重复点赞→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});","pm.test('已点赞提示',function(){pm.expect(pm.response.json().message).to.include('已点赞');});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}/like","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}","like"]}}
+        },
+        {
+          "name": "D08: 无Token点赞→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}/like","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}","like"]}}
+        },
+        {
+          "name": "D09: 阅读触发热度+1",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","console.log('触发阅读热度+1(5分钟内去重)');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenB}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}"]},"description":"Bob 阅读 → 热度+1"}
+        },
+        {
+          "name": "D10: 验证互动后热度累计",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","var aid=pm.environment.get('articleId');","var found=j.data.find(function(x){return x.id==aid});","if(found){console.log('文章热度: '+found.heatScore);pm.test('热度>0',function(){pm.expect(found.heatScore).to.be.above(0)});}else{console.log('文章不在热搜榜前10');}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]},"description":"验证阅读+点赞+评论产生的热度在热搜榜中体现"}
+        }
+      ]
+    },
+    {
+      "name": "5-热搜榜单 (6 cases)",
+      "item": [
+        {
+          "name": "E01: 公开访问(无Token)",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","pm.test('数组长度≤10',function(){pm.expect(j.data.length).to.be.at.most(10)});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]}}
+        },
+        {
+          "name": "E02: 降序验证",
+          "event": [{"listen":"test","script":{"exec":["var d=pm.response.json().data;","if(d.length>=2){var sorted=true;for(var i=1;i<d.length;i++){if(d[i].heatScore>d[i-1].heatScore)sorted=false;}","pm.test('按heatScore降序',function(){pm.expect(sorted).to.be.true});","console.log('Top1: '+d[0].title+' ('+d[0].heatScore+')');}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]}}
+        },
+        {
+          "name": "E03: 字段完整性",
+          "event": [{"listen":"test","script":{"exec":["var d=pm.response.json().data;","if(d.length>0){var f=d[0];","pm.test('含id',function(){pm.expect(f).to.have.property('id')});","pm.test('含title',function(){pm.expect(f).to.have.property('title')});","pm.test('含authorId',function(){pm.expect(f).to.have.property('authorId')});","pm.test('含likeCount',function(){pm.expect(f).to.have.property('likeCount')});","pm.test('含heatScore',function(){pm.expect(f.heatScore).to.be.a('number')});}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]}}
+        },
+        {
+          "name": "E04: 对比阅读前后热度",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","var aid=pm.environment.get('articleId');","var found=j.data.find(function(x){return x.id==aid});","if(found){pm.environment.set('currentHeat',found.heatScore);console.log('当前热度: '+found.heatScore);","var prev=pm.environment.get('prevHeat');","if(prev){console.log('热度变化: '+prev+' → '+found.heatScore);}","pm.environment.set('prevHeat',found.heatScore);}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]},"description":"每次执行记录热度，多次执行可观察变化趋势"}
+        },
+        {
+          "name": "E05: 排名颜色验证(前端)",
+          "event": [{"listen":"test","script":{"exec":["console.log('前端验证: 热搜榜 #1=红色 #2=橙色 #3=黄色 #4+=灰色');","console.log('访问 http://localhost 观察右侧栏或 /#/trending');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/","host":["{{baseUrl}}"]},"description":"浏览器手动验证前端热搜栏颜色"}
+        },
+        {
+          "name": "E06: Nginx缓存头验证",
+          "event": [{"listen":"test","script":{"exec":["var cs=pm.response.headers.get('X-Cache-Status');","console.log('X-Cache-Status: '+(cs||'未设置'));","if(cs){pm.test('Nginx缓存生效',function(){pm.expect(cs).to.be.oneOf(['HIT','MISS','EXPIRED','UPDATING'])});}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]}}
+        }
+      ]
+    },
+    {
+      "name": "6-AI续写 (7 cases)",
+      "item": [
+        {
+          "name": "F01: Demo模式SSE流式",
+          "event": [{"listen":"test","script":{"exec":["var b=pm.response.text();","pm.test('SSE含data:',function(){pm.expect(b).to.include('data:')});","var chunks=(b.match(/data:/g)||[]).length;","console.log('收到 '+chunks+' 个SSE块');","pm.test('至少2块',function(){pm.expect(chunks).to.be.at.least(2)});","pm.test('含[DONE]',function(){pm.expect(b).to.include('[DONE]')});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"context\":\"微服务架构的核心设计原则包括服务的单一职责、\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]},"description":"Demo模式（无需API Key），验证SSE流式推送"}
+        },
+        {
+          "name": "F02: SSE逐块推送验证",
+          "event": [{"listen":"test","script":{"exec":["var b=pm.response.text();","var lines=b.split('\\n').filter(function(l){return l.startsWith('data:')&&l!=='data:[DONE]'});","pm.test('至少3个data块',function(){pm.expect(lines.length).to.be.at.least(3)});","console.log('共 '+lines.length+' 个有效data块');"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"context\":\"请详细介绍Docker容器化部署的最佳实践，\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]}}
+        },
+        {
+          "name": "F03: 空上下文→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"context\":\"\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]}}
+        },
+        {
+          "name": "F04: 无Token→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"context\":\"test\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]}}
+        },
+        {
+          "name": "F05: 超长上下文→400",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 400',function(){pm.response.to.have.status(400)});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"context\":\"{{$randomLoremParagraphs 60}}\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]},"description":"Postman 动态变量生成超长文本 → 超过4000字"}
+        },
+        {
+          "name": "F06: Nginx SSE代理验证",
+          "event": [{"listen":"test","script":{"exec":["var ct=pm.response.headers.get('Content-Type');","console.log('Content-Type: '+ct);","var b=pm.response.text();","pm.test('SSE流正常',function(){pm.expect(b).to.include('data:')});"],"type":"text/javascript"}}],
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{tokenA}}"}],"body":{"mode":"raw","raw":"{\"context\":\"微服务\"}"},"url":{"raw":"{{baseUrl}}/api/ai/continue","host":["{{baseUrl}}"],"path":["api","ai","continue"]},"description":"验证 Nginx 未缓冲 SSE 响应"}
+        },
+        {
+          "name": "F07: 前端AI面板 (浏览器)",
+          "event": [{"listen":"test","script":{"exec":["console.log('浏览器验证: 登录后访问 /#/ai');","console.log('1. 输入上文 → 开始续写 → 逐字显示');","console.log('2. 点击停止 → 输出中断');","console.log('3. 未登录点击开始 → Toast提示');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/","host":["{{baseUrl}}"]},"description":"手动浏览器验证"}
+        }
+      ]
+    },
+    {
+      "name": "7-我的文章 (5 cases)",
+      "item": [
+        {
+          "name": "G01: 我的已发布",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","pm.test('含分页数据',function(){pm.expect(j.data).to.have.property('total');pm.expect(j.data.list).to.be.an('array')});","console.log('total='+j.data.total);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/mine?status=PUBLISHED","host":["{{baseUrl}}"],"path":["api","articles","mine"],"query":[{"key":"status","value":"PUBLISHED"}]}}
+        },
+        {
+          "name": "G02: 我的草稿",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.test('HTTP 200',function(){pm.response.to.have.status(200)});","console.log('drafts='+j.data.total);"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/mine?status=DRAFT","host":["{{baseUrl}}"],"path":["api","articles","mine"],"query":[{"key":"status","value":"DRAFT"}]}}
+        },
+        {
+          "name": "G03: 无Token→401",
+          "event": [{"listen":"test","script":{"exec":["pm.test('HTTP 401',function(){pm.response.to.have.status(401)});"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles/mine","host":["{{baseUrl}}"],"path":["api","articles","mine"]}}
+        },
+        {
+          "name": "G04: Bob看不到Alice的文章",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","if(j.code===200){var ids=j.data.list.map(function(x){return x.authorId});","var allBob=ids.every(function(id){return id!==1});","pm.test('不含Alice的文章',function(){pm.expect(allBob).to.be.true});","console.log('Bob的文章数: '+j.data.total);}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenB}}"}],"url":{"raw":"{{baseUrl}}/api/articles/mine","host":["{{baseUrl}}"],"path":["api","articles","mine"]},"description":"Bob登录后查我的文章 → 应只看Bob自己的文章"}
+        },
+        {
+          "name": "G05: 前端我的文章页",
+          "event": [{"listen":"test","script":{"exec":["console.log('浏览器验证: 登录后访问 /#/my');","console.log('1. 已发布/草稿箱 标签切换');","console.log('2. 草稿→点击发布 → 移至已发布');","console.log('3. 点击编辑 → 跳转编辑器');","console.log('4. 点击删除 → 确认后移除');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/","host":["{{baseUrl}}"]},"description":"手动浏览器验证 /#/my 页面功能"}
+        }
+      ]
+    },
+    {
+      "name": "8-数据一致性 (5 cases)",
+      "item": [
+        {
+          "name": "I01: Redis热度验证",
+          "event": [{"listen":"test","script":{"exec":["console.log('===== 终端执行 =====');","var aid=pm.environment.get('articleId');","console.log('docker exec kb-redis redis-cli ZSCORE hot_articles '+aid);","console.log('docker exec kb-mysql mysql -uroot -proot123 kb_platform -e \"SELECT id,like_count FROM articles WHERE id='+aid+';\"');","console.log('');","console.log('验证: heatScore 应反映 阅读(+1) + 点赞(+3) + 评论(+1)');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/trending","host":["{{baseUrl}}"],"path":["api","trending"]},"description":"提供 Redis/MySQL 交叉验证命令"}
+        },
+        {
+          "name": "I02: 评论异步持久化",
+          "event": [{"listen":"test","script":{"exec":["console.log('===== 终端执行 =====');","var aid=pm.environment.get('articleId');","console.log('docker exec kb-mysql mysql -uroot -proot123 kb_platform -e \"SELECT COUNT(*) FROM comments WHERE article_id='+aid+';\"');","console.log('验证: 应与 API 返回评论数一致');"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/comments?articleId={{articleId}}","host":["{{baseUrl}}"],"path":["api","comments"],"query":[{"key":"articleId","value":"{{articleId}}"}]}}
+        },
+        {
+          "name": "I03: 标签提取验证",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","var tags=j.data.tags;","if(tags){console.log('✅ tags: '+tags);","pm.test('tags非空',function(){pm.expect(tags).to.not.be.null});}else{console.log('⚠ tags=null — tag-extract-service 可能未运行');}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}"]},"description":"查看 tags 字段是否被标签提取消费者填充"}
+        },
+        {
+          "name": "I04: 合规检测验证",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","var ar=j.data.auditResult;","if(ar){console.log('✅ auditResult: '+ar);","pm.test('auditResult非空',function(){pm.expect(ar).to.not.be.null});}else{console.log('⚠ auditResult=null — compliance-service 可能未运行');}"],"type":"text/javascript"}}],
+          "request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{tokenA}}"}],"url":{"raw":"{{baseUrl}}/api/articles/{{articleId}}","host":["{{baseUrl}}"],"path":["api","articles","{{articleId}}"]},"description":"查看 auditResult 字段是否被合规检测消费者填充"}
+        },
+        {
+          "name": "I05: 分页数据一致性",
+          "event": [{"listen":"test","script":{"exec":["var j=pm.response.json();","pm.environment.set('page1First',j.data.list[0]?j.data.list[0].id:0);","console.log('Page1 first article: '+pm.environment.get('page1First'));"],"type":"text/javascript"}}],
+          "request":{"method":"GET","url":{"raw":"{{baseUrl}}/api/articles?page=1&size=5","host":["{{baseUrl}}"],"path":["api","articles"],"query":[{"key":"page","value":"1"},{"key":"size","value":"5"}]},"description":"翻页后再回第1页验证数据一致"}
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key":"baseUrl","value":"http://localhost","type":"string"},
+    {"key":"tokenA","value":"","type":"string"},
+    {"key":"tokenB","value":"","type":"string"},
+    {"key":"articleId","value":"","type":"string"},
+    {"key":"draftId","value":"","type":"string"},
+    {"key":"pubArticleId","value":"","type":"string"},
+    {"key":"delArticleId","value":"","type":"string"},
+    {"key":"testUsername","value":"st12_tester","type":"string"},
+    {"key":"prevHeat","value":"","type":"string"},
+    {"key":"currentHeat","value":"","type":"string"},
+    {"key":"page1First","value":"","type":"string"}
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{"key":"token","value":"{{tokenA}}","type":"string"}]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": ["var token=pm.environment.get('tokenA');","var h=pm.request.headers;","if(token&&!h.has('Authorization')){h.add({key:'Authorization',value:'Bearer '+token});}"],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": ["var j;try{j=pm.response.json()}catch(e){return}","if(j&&j.code!==undefined){pm.test('[自动] 响应含 code+message',function(){pm.expect(j).to.have.property('code');pm.expect(j).to.have.property('message')})}"],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

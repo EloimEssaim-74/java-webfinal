@@ -45,7 +45,8 @@ public class UserServiceImpl implements UserService {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(request.getRole() != null && "admin".equals(request.getRole()) ? "admin" : "user");
+        // Security: always default to "user" — admin promotion requires manual DB update
+        user.setRole("user");
 
         userMapper.insert(user);
         log.info("User registered: id={}, username={}", user.getId(), user.getUsername());

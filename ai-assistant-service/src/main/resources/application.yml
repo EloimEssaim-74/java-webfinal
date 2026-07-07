@@ -1,0 +1,69 @@
+server:
+  port: ${SERVER_PORT:9012}
+
+spring:
+  application:
+    name: ai-assistant-service
+  main:
+    web-application-type: reactive
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:kb-platform}
+      config:
+        enabled: false
+
+# ============================================
+# AI 服务配置
+# ============================================
+ai:
+  openai:
+    # OpenAI 兼容 API 地址（支持任何兼容端点：OpenAI/DeepSeek/Moonshot/Ollama等）
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    # API Key（必须通过环境变量注入，无默认值）
+    api-key: ${OPENAI_API_KEY:}
+    # 模型名称
+    model: ${OPENAI_MODEL:gpt-3.5-turbo}
+    # 最大生成 token 数
+    max-tokens: 2048
+    # 生成温度 (0-2)
+    temperature: 0.7
+    # 流式响应超时（秒）
+    timeout-seconds: 120
+    # Demo 模式 — true 时使用本地模拟输出（无需 API Key）
+    demo-mode: ${AI_DEMO_MODE:false}
+
+# ============================================
+# Resilience4j 熔断器
+# ============================================
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        # 滑动窗口大小（最近N次调用统计）
+        sliding-window-size: 10
+        # 滑动窗口类型
+        sliding-window-type: COUNT_BASED
+        # 失败率阈值 — 超过此比例触发熔断
+        failure-rate-threshold: 50
+        # 熔断后等待时间
+        wait-duration-in-open-state: 30s
+        # 半开状态允许的探测调用次数
+        permitted-number-of-calls-in-half-open-state: 3
+        # 自动从半开到开
+        automatic-transition-from-open-to-half-open-enabled: true
+        # 慢调用也视为失败
+        slow-call-rate-threshold: 100
+        slow-call-duration-threshold: 30s
+    instances:
+      openai-api:
+        base-config: default
+  timelimiter:
+    instances:
+      openai-api:
+        timeout-duration: 120s
+
+logging:
+  level:
+    com.kb.ai: DEBUG

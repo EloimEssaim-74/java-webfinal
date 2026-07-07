@@ -24,6 +24,9 @@
         <module>user-service</module>
         <module>article-service</module>
         <module>interact-service</module>
+        <module>tag-extract-service</module>
+        <module>compliance-service</module>
+        <module>ai-assistant-service</module>
     </modules>
 
     <properties>
