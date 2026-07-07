@@ -11,6 +11,10 @@ spring:
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
         namespace: ${NACOS_NAMESPACE:kb-platform}
+        # Stage 14: 心跳调优
+        heart-beat-interval: 3000
+        heart-beat-timeout: 30000
+        ip-delete-timeout: 45000
       config:
         enabled: false
 

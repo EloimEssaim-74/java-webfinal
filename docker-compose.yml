@@ -203,6 +203,7 @@ services:
       - DB_SLAVE_PORT=3306
       - DB_USER=root
       - DB_PASSWORD=root123
+      - DB_READ_WRITE_SPLITTING=true
       - REDIS_HOST=redis
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
     depends_on:
@@ -218,7 +219,7 @@ services:
   # ============================================
   article-service:
     build: ./backend/article-service
-    container_name: kb-article-service
+    # container_name removed for scale support (Stage 14)
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
       - DB_HOST=mysql
@@ -227,6 +228,7 @@ services:
       - DB_SLAVE_PORT=3306
       - DB_USER=root
       - DB_PASSWORD=root123
+      - DB_READ_WRITE_SPLITTING=true
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC

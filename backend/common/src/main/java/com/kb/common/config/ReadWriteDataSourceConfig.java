@@ -50,6 +50,7 @@ public class ReadWriteDataSourceConfig {
      * <p>复用 spring.datasource.* 标准配置项，兼容 Druid/HikariCP 自动检测.</p>
      */
     @Bean
+    @Primary
     @ConfigurationProperties("spring.datasource")
     public DataSourceProperties masterDataSourceProperties() {
         return new DataSourceProperties();

@@ -10,6 +10,7 @@ import com.kb.common.vo.TopArticleVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
@@ -86,6 +87,7 @@ public class HotArticleServiceImpl implements HotArticleService {
     // ==================== Top 10 查询 ====================
 
     @Override
+    @Transactional(readOnly = true)
     public List<TopArticleVO> getTop10() {
         return cacheManager.getOrCompute(this::fetchTop10FromRedis);
     }

@@ -2,6 +2,7 @@ package com.kb.article.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.kb.article.config.RabbitMQConfig;
 import com.kb.article.mapper.ArticleMapper;
 import com.kb.article.service.ArticleService;
@@ -55,7 +56,6 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    @Transactional
     public ArticleVO publish(Long articleId, Long userId, String role) {
         Article article = findArticleOrThrow(articleId);
         checkOwnership(article, userId, role);
@@ -64,8 +64,9 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BusinessException("文章已发布，无需重复操作");
         }
 
+        // Use raw SQL @Update to bypass MyBatis-Plus/LambdaUpdateWrapper compatibility issue with Spring Boot 3.4.6
+        articleMapper.publishById(articleId);
         article.setStatus(ArticleStatus.PUBLISHED.getValue());
-        articleMapper.updateById(article);
 
         // Send message to RabbitMQ for async processing
         Map<String, Object> message = new HashMap<>();
@@ -97,7 +98,17 @@ public class ArticleServiceImpl implements ArticleService {
             article.setContent(request.getContent());
         }
 
-        articleMapper.updateById(article);
+        LambdaUpdateWrapper<Article> updateWrapper = new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, article.getId());
+        if (request.getTitle() != null) {
+            updateWrapper.set(Article::getTitle, request.getTitle());
+        }
+        if (request.getContent() != null) {
+            updateWrapper.set(Article::getContent, request.getContent());
+        }
+        articleMapper.update(null, updateWrapper);
+        // Reload to get fresh data for response
+        article = findArticleOrThrow(articleId);
         log.info("Article updated: id={}", articleId);
 
         return toVO(article);
@@ -114,6 +125,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResult<ArticleListItemVO> list(int page, int size) {
         LambdaQueryWrapper<Article> qw = new LambdaQueryWrapper<>();
         qw.eq(Article::getStatus, ArticleStatus.PUBLISHED.getValue())
@@ -134,6 +146,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResult<ArticleListItemVO> listMine(Long userId, String status, int page, int size) {
         LambdaQueryWrapper<Article> qw = new LambdaQueryWrapper<>();
         qw.eq(Article::getAuthorId, userId);
@@ -157,6 +170,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ArticleVO detail(Long articleId, Long userId) {
         Article article = findArticleOrThrow(articleId);
 
