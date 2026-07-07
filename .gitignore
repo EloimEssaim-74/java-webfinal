@@ -27,3 +27,4 @@ logs/
 # Package files
 *.jar
 *.war
+jmeter.log

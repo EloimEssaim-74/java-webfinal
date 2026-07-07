@@ -284,8 +284,8 @@ dim "   Redis heatScore=$REDIS_LIKES, MySQL like_count=$MYSQL_LIKES"
 section "10. 自动化测试 (JUnit 5)"
 
 if [ -f "test.sh" ]; then
-    step "运行单元测试" "bash test.sh"
-    bash test.sh 2>&1 | grep -E "Tests run:|PASSED|FAILED|BUILD"
+    step "运行单元测试" "bash scripts/test.sh"
+    bash scripts/test.sh 2>&1 | grep -E "Tests run:|PASSED|FAILED|BUILD"
 else
     dim "   test.sh 未创建, 可通过 mvn test 手动运行"
 fi
