@@ -19,14 +19,14 @@
     </parent>
 
     <modules>
-        <module>common</module>
-        <module>gateway-service</module>
-        <module>user-service</module>
-        <module>article-service</module>
-        <module>interact-service</module>
-        <module>tag-extract-service</module>
-        <module>compliance-service</module>
-        <module>ai-assistant-service</module>
+        <module>backend/common</module>
+        <module>backend/gateway-service</module>
+        <module>backend/user-service</module>
+        <module>backend/article-service</module>
+        <module>backend/interact-service</module>
+        <module>backend/tag-extract-service</module>
+        <module>backend/compliance-service</module>
+        <module>backend/ai-assistant-service</module>
     </modules>
 
     <properties>

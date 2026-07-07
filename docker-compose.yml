@@ -3,7 +3,7 @@ services:
   # Frontend - React SPA (独立部署)
   # ============================================
   frontend:
-    build: ./frontend-react
+    build: ./frontend
     container_name: kb-frontend
     ports:
       - "3000:80"
@@ -21,8 +21,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./frontend-react/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - gateway-1
       - gateway-2
@@ -53,8 +53,8 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./config/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./config/sql/init-replication.sql:/docker-entrypoint-initdb.d/02-init-replication.sql
+      - ./deploy/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./deploy/sql/init-replication.sql:/docker-entrypoint-initdb.d/02-init-replication.sql
     networks:
       - kb-network
     healthcheck:
@@ -82,7 +82,7 @@ services:
       - "3307:3306"
     volumes:
       - mysql_slave_data:/var/lib/mysql
-      - ./config/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./deploy/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     networks:
       - kb-network
     depends_on:
@@ -157,7 +157,7 @@ services:
   # Gateway Service 实例 1 — API网关
   # ============================================
   gateway-1:
-    build: ./gateway-service
+    build: ./backend/gateway-service
     container_name: kb-gateway-1
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -175,7 +175,7 @@ services:
   # Gateway Service 实例 2 — API网关 (Stage 9)
   # ============================================
   gateway-2:
-    build: ./gateway-service
+    build: ./backend/gateway-service
     container_name: kb-gateway-2
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -193,7 +193,7 @@ services:
   # User Service - 用户服务
   # ============================================
   user-service:
-    build: ./user-service
+    build: ./backend/user-service
     container_name: kb-user-service
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -217,7 +217,7 @@ services:
   # Article Service - 文章服务 (可水平扩展)
   # ============================================
   article-service:
-    build: ./article-service
+    build: ./backend/article-service
     container_name: kb-article-service
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -246,7 +246,7 @@ services:
   # Interact Service - 互动服务
   # ============================================
   interact-service:
-    build: ./interact-service
+    build: ./backend/interact-service
     container_name: kb-interact-service
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -272,7 +272,7 @@ services:
   # Tag Extract Service - AI标签提取消费者
   # ============================================
   tag-extract-service:
-    build: ./tag-extract-service
+    build: ./backend/tag-extract-service
     container_name: kb-tag-extract
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -294,7 +294,7 @@ services:
   # Compliance Service - AI合规检测消费者
   # ============================================
   compliance-service:
-    build: ./compliance-service
+    build: ./backend/compliance-service
     container_name: kb-compliance
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
@@ -316,7 +316,7 @@ services:
   # AI Assistant Service - AI流式创作辅助
   # ============================================
   ai-assistant-service:
-    build: ./ai-assistant-service
+    build: ./backend/ai-assistant-service
     container_name: kb-ai-assistant
     environment:
       - NACOS_SERVER_ADDR=nacos:8848
