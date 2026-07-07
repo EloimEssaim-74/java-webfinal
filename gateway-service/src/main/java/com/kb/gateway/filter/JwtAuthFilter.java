@@ -46,7 +46,13 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // 2. Extract token from Authorization header
+        // 2. GET 读文章公开浏览（如知乎 — 无需登录）
+        String method = exchange.getRequest().getMethod().name();
+        if ("GET".equals(method) && path.startsWith("/api/articles")) {
+            return chain.filter(exchange);
+        }
+
+        // 3. Extract token from Authorization header
         String authHeader = exchange.getRequest().getHeaders().getFirst(JwtConstants.HEADER_NAME);
         if (authHeader == null || !authHeader.startsWith(JwtConstants.TOKEN_PREFIX)) {
             return writeError(exchange, ResultCode.UNAUTHORIZED, "缺少或无效的认证令牌");
