@@ -8,6 +8,7 @@ import com.kb.common.dto.ArticleUpdateRequest;
 import com.kb.common.result.Result;
 import com.kb.common.vo.ArticleListItemVO;
 import com.kb.common.vo.ArticleVO;
+import com.kb.common.vo.PageResult;
 import com.kb.common.vo.TopArticleVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,11 +56,21 @@ public class ArticleController {
     }
 
     @GetMapping("/api/articles")
-    public Result<List<ArticleListItemVO>> list(
+    public Result<PageResult<ArticleListItemVO>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        List<ArticleListItemVO> articles = articleService.list(page, size);
-        return Result.success(articles);
+        PageResult<ArticleListItemVO> result = articleService.list(page, size);
+        return Result.success(result);
+    }
+
+    @GetMapping("/api/articles/mine")
+    public Result<PageResult<ArticleListItemVO>> listMine(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(JwtConstants.HEADER_USER_ID) Long userId) {
+        PageResult<ArticleListItemVO> result = articleService.listMine(userId, status, page, size);
+        return Result.success(result);
     }
 
     @GetMapping("/api/articles/{id}")

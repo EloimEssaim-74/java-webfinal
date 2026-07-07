@@ -46,9 +46,11 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // 2. GET 读文章公开浏览（如知乎 — 无需登录）
+        // 2. GET 读操作公开浏览（如知乎 — 无需登录）
         String method = exchange.getRequest().getMethod().name();
-        if ("GET".equals(method) && path.startsWith("/api/articles")) {
+        if ("GET".equals(method)
+                && (path.startsWith("/api/articles") || path.startsWith("/api/comments"))
+                && !path.equals("/api/articles/mine")) {
             return chain.filter(exchange);
         }
 
@@ -72,6 +74,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         // 4. Check Redis blacklist
         String blacklistKey = RedisKeyConstants.TOKEN_BLACKLIST + token;
         return redisTemplate.hasKey(blacklistKey)
+                .defaultIfEmpty(false)
                 .flatMap(isBlacklisted -> {
                     if (Boolean.TRUE.equals(isBlacklisted)) {
                         return writeError(exchange, ResultCode.UNAUTHORIZED, "令牌已注销");
@@ -86,7 +89,12 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     }
 
                     // 6. Propagate user identity to downstream services via headers
+                    // Strip incoming headers first to prevent spoofing
                     ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .headers(h -> {
+                                h.remove(JwtConstants.HEADER_USER_ID);
+                                h.remove(JwtConstants.HEADER_USER_ROLE);
+                            })
                             .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                             .header(JwtConstants.HEADER_USER_ROLE, role)
                             .build();

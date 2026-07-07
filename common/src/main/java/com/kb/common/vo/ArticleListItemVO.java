@@ -9,6 +9,7 @@ public class ArticleListItemVO {
     private Long id;
     private Long authorId;
     private String title;
+    private String status;
     private Integer likeCount;
     private String tags;
     private LocalDateTime createdAt;

@@ -3,11 +3,14 @@ package com.kb.interact.controller;
 import com.kb.common.constant.JwtConstants;
 import com.kb.common.dto.CommentCreateRequest;
 import com.kb.common.result.Result;
+import com.kb.common.vo.CommentVO;
 import com.kb.interact.service.CommentService;
 import com.kb.interact.service.LikeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,6 +24,12 @@ public class InteractController {
                                       @RequestHeader(JwtConstants.HEADER_USER_ID) Long userId) {
         commentService.createComment(request.getArticleId(), userId, request.getContent());
         return Result.success();
+    }
+
+    @GetMapping("/api/comments")
+    public Result<List<CommentVO>> listComments(@RequestParam Long articleId) {
+        List<CommentVO> comments = commentService.listByArticleId(articleId);
+        return Result.success(comments);
     }
 
     @PostMapping("/api/articles/{id}/like")

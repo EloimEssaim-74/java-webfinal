@@ -22,24 +22,42 @@ public class LikeServiceImpl implements LikeService {
     public void likeArticle(Long articleId, Long userId) {
         // 1. Dedup check — one like per user per article (permanent)
         String dedupKey = String.format(RedisKeyConstants.LIKE_DEDUP, articleId, userId);
-        Boolean success = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1");
-        if (Boolean.FALSE.equals(success)) {
-            throw new BusinessException("您已点赞过该文章");
+        try {
+            Boolean success = redisTemplate.opsForValue().setIfAbsent(dedupKey, "1");
+            if (Boolean.FALSE.equals(success)) {
+                throw new BusinessException("您已点赞过该文章");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("点赞去重检查失败: articleId={}, userId={}", articleId, userId, e);
+            throw new BusinessException(500, "点赞服务暂不可用，请稍后重试");
         }
 
         // 2. Write to Redis Stream for async persistence
-        Map<String, String> event = new HashMap<>();
-        event.put("articleId", String.valueOf(articleId));
-        event.put("userId", String.valueOf(userId));
-        event.put("timestamp", String.valueOf(System.currentTimeMillis()));
-
-        redisTemplate.opsForStream().add(RedisKeyConstants.LIKE_EVENTS_STREAM, event);
+        try {
+            Map<String, String> event = new HashMap<>();
+            event.put("articleId", String.valueOf(articleId));
+            event.put("userId", String.valueOf(userId));
+            event.put("timestamp", String.valueOf(System.currentTimeMillis()));
+            redisTemplate.opsForStream().add(RedisKeyConstants.LIKE_EVENTS_STREAM, event);
+        } catch (Exception e) {
+            log.error("点赞事件写入失败: articleId={}, userId={}", articleId, userId, e);
+            // 回滚去重 key
+            redisTemplate.delete(dedupKey);
+            throw new BusinessException(500, "点赞服务暂不可用，请稍后重试");
+        }
 
         // 3. Update hot articles ZSET (+3 for a like)
-        redisTemplate.opsForZSet().incrementScore(
-                RedisKeyConstants.HOT_ARTICLES,
-                String.valueOf(articleId),
-                3);
+        try {
+            redisTemplate.opsForZSet().incrementScore(
+                    RedisKeyConstants.HOT_ARTICLES,
+                    String.valueOf(articleId),
+                    3);
+        } catch (Exception e) {
+            log.error("热搜更新失败: articleId={}", articleId, e);
+            // 热度更新失败不影响主流程
+        }
 
         // 4. Publish cache refresh notification to all article-service instances
         publishRefresh(articleId);

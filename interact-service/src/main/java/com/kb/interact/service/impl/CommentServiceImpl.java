@@ -1,7 +1,11 @@
 package com.kb.interact.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.common.constant.RedisKeyConstants;
+import com.kb.common.entity.Comment;
+import com.kb.common.vo.CommentVO;
+import com.kb.interact.mapper.CommentMapper;
 import com.kb.interact.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -11,7 +15,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -20,6 +26,7 @@ public class CommentServiceImpl implements CommentService {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final CommentMapper commentMapper;
 
     @Override
     @SneakyThrows
@@ -44,6 +51,23 @@ public class CommentServiceImpl implements CommentService {
         publishRefresh(articleId);
 
         log.debug("Comment event pushed: articleId={}, userId={}, heat +1", articleId, userId);
+    }
+
+    @Override
+    public List<CommentVO> listByArticleId(Long articleId) {
+        List<Comment> comments = commentMapper.selectList(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getArticleId, articleId)
+                        .orderByAsc(Comment::getCreatedAt));
+        return comments.stream().map(c -> {
+            CommentVO vo = new CommentVO();
+            vo.setId(c.getId());
+            vo.setArticleId(c.getArticleId());
+            vo.setUserId(c.getUserId());
+            vo.setContent(c.getContent());
+            vo.setCreatedAt(c.getCreatedAt());
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     /**

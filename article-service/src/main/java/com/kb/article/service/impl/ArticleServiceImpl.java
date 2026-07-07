@@ -14,6 +14,7 @@ import com.kb.common.exception.BusinessException;
 import com.kb.common.result.ResultCode;
 import com.kb.common.vo.ArticleListItemVO;
 import com.kb.common.vo.ArticleVO;
+import com.kb.common.vo.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -42,7 +43,8 @@ public class ArticleServiceImpl implements ArticleService {
         article.setAuthorId(authorId);
         article.setTitle(request.getTitle());
         article.setContent(request.getContent());
-        article.setStatus(request.getStatus() != null ? request.getStatus() : ArticleStatus.DRAFT.getValue());
+        // Security: always create as DRAFT — publish workflow must go through publish()
+        article.setStatus(ArticleStatus.DRAFT.getValue());
         article.setDeleted(0);
         article.setLikeCount(0);
 
@@ -112,23 +114,55 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    public List<ArticleListItemVO> list(int page, int size) {
+    public PageResult<ArticleListItemVO> list(int page, int size) {
         LambdaQueryWrapper<Article> qw = new LambdaQueryWrapper<>();
         qw.eq(Article::getStatus, ArticleStatus.PUBLISHED.getValue())
           .orderByDesc(Article::getCreatedAt);
 
         Page<Article> pageResult = articleMapper.selectPage(new Page<>(page, size), qw);
 
-        return pageResult.getRecords().stream()
+        List<ArticleListItemVO> records = pageResult.getRecords().stream()
                 .map(this::toListItemVO)
                 .collect(Collectors.toList());
+
+        PageResult<ArticleListItemVO> result = new PageResult<>();
+        result.setList(records);
+        result.setTotal(pageResult.getTotal());
+        result.setPage(page);
+        result.setSize(size);
+        return result;
+    }
+
+    @Override
+    public PageResult<ArticleListItemVO> listMine(Long userId, String status, int page, int size) {
+        LambdaQueryWrapper<Article> qw = new LambdaQueryWrapper<>();
+        qw.eq(Article::getAuthorId, userId);
+        if (status != null && !status.isBlank()) {
+            qw.eq(Article::getStatus, status);
+        }
+        qw.orderByDesc(Article::getCreatedAt);
+
+        Page<Article> pageResult = articleMapper.selectPage(new Page<>(page, size), qw);
+
+        List<ArticleListItemVO> records = pageResult.getRecords().stream()
+                .map(this::toListItemVO)
+                .collect(Collectors.toList());
+
+        PageResult<ArticleListItemVO> result = new PageResult<>();
+        result.setList(records);
+        result.setTotal(pageResult.getTotal());
+        result.setPage(page);
+        result.setSize(size);
+        return result;
     }
 
     @Override
     public ArticleVO detail(Long articleId, Long userId) {
         Article article = findArticleOrThrow(articleId);
 
-        if (!ArticleStatus.PUBLISHED.getValue().equals(article.getStatus())) {
+        // Allow author/admin to view own drafts; others can only see PUBLISHED
+        boolean isOwner = article.getAuthorId().equals(userId);
+        if (!ArticleStatus.PUBLISHED.getValue().equals(article.getStatus()) && !isOwner) {
             throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "文章不存在");
         }
 
@@ -180,6 +214,7 @@ public class ArticleServiceImpl implements ArticleService {
         vo.setId(article.getId());
         vo.setAuthorId(article.getAuthorId());
         vo.setTitle(article.getTitle());
+        vo.setStatus(article.getStatus());
         vo.setLikeCount(article.getLikeCount());
         vo.setTags(article.getTags());
         vo.setCreatedAt(article.getCreatedAt());
