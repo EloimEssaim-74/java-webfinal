@@ -69,3 +69,18 @@ logging:
   level:
     com.kb.gateway: DEBUG
     org.springframework.cloud.gateway: INFO
+
+# ============================================
+# SpringDoc OpenAPI Gateway 聚合
+# ============================================
+springdoc:
+  swagger-ui:
+    urls:
+      - name: user-service
+        url: /api/user/v3/api-docs
+      - name: article-service
+        url: /api/articles/v3/api-docs
+      - name: interact-service
+        url: /api/comments/v3/api-docs
+  api-docs:
+    enabled: true
