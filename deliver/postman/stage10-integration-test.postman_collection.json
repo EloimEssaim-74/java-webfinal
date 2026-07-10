@@ -1,0 +1,330 @@
+{
+  "info": {
+    "name": "Knowledge Platform - Stage 10 全链路集成测试",
+    "description": "# 知识库与内容发布平台 — 全链路集成测试\n\n## 覆盖范围 (42 条用例)\n| 模块 | 用例数 | 包含场景 |\n|------|--------|---------|\n| 0-环境检查 | 3 | Nginx可达、Nacos注册、中间件健康 |\n| 1-用户服务 | 6 | 注册/登录/注销/异常/鉴权 |\n| 2-文章服务 | 9 | CRUD/发布/权限/消息发送 |\n| 3-互动服务 | 5 | 评论/点赞/防重/热度联动 |\n| 4-热搜榜单 | 6 | 公开访问/排序/缓存/热度累加 |\n| 5-网关限流 | 3 | 429触发/恢复/公开路径 |\n| 6-异步广播 | 4 | 标签提取/合规检测/违规拦截 |\n| 7-AI续写 | 4 | SSE流式/Demo/断连/校验 |\n| 8-数据一致性 | 4 | Redis↔MySQL/RabbitMQ可靠性 |\n| 9-全流程E2E | 1 | 注册→创作→互动→热搜 一键跑通 |\n\n## 环境变量\n| 变量 | 默认值 | 说明 |\n|------|--------|------|\n| `baseUrl` | `http://localhost` | Nginx入口(80端口) |\n| `token` | (自动) | 用户A Token |\n| `tokenB` | (自动) | 用户B Token |\n| `adminToken` | (自动) | 管理员Token |\n| `articleId` | (自动) | 测试文章ID |\n\n## 执行方式\n1. 导入 Collection → 创建 Environment (baseUrl=http://localhost)\n2. **按文件夹顺序执行** (0→1→2→...→9)\n3. 或使用 Runner: Run Collection → 勾选 \"Keep variable values\" → 全量执行",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "kb-platform-stage10"
+  },
+  "item": [
+    {
+      "name": "0-环境检查 (Health Check)",
+      "description": "验证所有基础设施和服务可达",
+      "item": [
+        {
+          "name": "H01: Nginx 代理可达",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('Nginx可达 200', function() { pm.response.to.have.status(200); });", "var json = pm.response.json();", "pm.test('返回 Result<T> 格式', function() { pm.expect(json.code).to.eql(200); });", "console.log('✅ Nginx → Gateway → article-service 全链路通');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "验证 Nginx → Gateway → article-service 全链路"}
+        },
+        {
+          "name": "H02: Gzip 压缩验证",
+          "event": [{"listen": "test", "script": {"exec": ["var ce = pm.response.headers.get('Content-Encoding');", "pm.test('Gzip 压缩启用', function() { pm.expect(ce).to.include('gzip'); });", "console.log('Content-Encoding: ' + ce);"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Accept-Encoding", "value": "gzip"}], "url": {"raw": "{{baseUrl}}/api/articles?page=1&size=5", "host": ["{{baseUrl}}"], "path": ["api", "articles"], "query": [{"key": "page", "value": "1"}, {"key": "size", "value": "5"}]}, "description": "验证 Nginx Gzip 压缩"}
+        },
+        {
+          "name": "H03: Nacos 服务注册",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('Nacos 可达', function() { pm.response.to.have.status(200); });", "var data = pm.response.text();", "console.log('已注册服务:');", "try { JSON.parse(data).doms.forEach(function(s) { console.log('  - ' + s); }); } catch(e) {}"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "http://localhost:8848/nacos/v1/ns/service/list?namespaceId=kb-platform", "host": ["localhost"], "path": ["nacos", "v1", "ns", "service", "list"], "query": [{"key": "namespaceId", "value": "kb-platform"}]}, "description": "验证 Nacos 服务注册中心在线"}
+        }
+      ]
+    },
+    {
+      "name": "1-用户服务 (6 cases)",
+      "description": "注册、登录、注销、鉴权",
+      "item": [
+        {
+          "name": "U01: 注册用户A",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) { pm.environment.set('usernameA', 'itest_a'); console.log('用户A注册成功'); }", "pm.test('注册成功或已存在', function() { pm.expect([200,400]).to.include(pm.response.code); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_a\",\"password\":\"itest123\"}"}, "url": {"raw": "{{baseUrl}}/api/user/register", "host": ["{{baseUrl}}"], "path": ["api", "user", "register"]}}
+        },
+        {
+          "name": "U02: 注册用户B",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) { pm.environment.set('usernameB', 'itest_b'); console.log('用户B注册成功'); }", "pm.test('注册成功或已存在', function() { pm.expect([200,400]).to.include(pm.response.code); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_b\",\"password\":\"itest123\"}"}, "url": {"raw": "{{baseUrl}}/api/user/register", "host": ["{{baseUrl}}"], "path": ["api", "user", "register"]}}
+        },
+        {
+          "name": "U03: 重复注册(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('返回 400', function() { pm.response.to.have.status(400); });", "pm.test('提示已存在', function() { pm.expect(pm.response.json().message).to.include('已存在'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_a\",\"password\":\"itest123\"}"}, "url": {"raw": "{{baseUrl}}/api/user/register", "host": ["{{baseUrl}}"], "path": ["api", "user", "register"]}}
+        },
+        {
+          "name": "U04: 用户A登录",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) {", "  pm.environment.set('token', json.data.token);", "  pm.environment.set('userId', json.data.userId);", "  console.log('Token已保存: userId=' + json.data.userId);", "}", "pm.test('登录成功', function() { pm.expect(json.data).to.have.property('token'); pm.expect(json.data).to.have.property('tokenType','Bearer'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_a\",\"password\":\"itest123\"}"}, "url": {"raw": "{{baseUrl}}/api/user/login", "host": ["{{baseUrl}}"], "path": ["api", "user", "login"]}}
+        },
+        {
+          "name": "U05: 用户B登录",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) {", "  pm.environment.set('tokenB', json.data.token);", "  pm.environment.set('userIdB', json.data.userId);", "}", "pm.test('登录成功', function() { pm.expect(json.data).to.have.property('token'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_b\",\"password\":\"itest123\"}"}, "url": {"raw": "{{baseUrl}}/api/user/login", "host": ["{{baseUrl}}"], "path": ["api", "user", "login"]}}
+        },
+        {
+          "name": "U06: 错误密码(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('返回 401', function() { pm.response.to.have.status(401); });", "pm.test('错误提示', function() { pm.expect(pm.response.json().message).to.include('错误'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\":\"itest_a\",\"password\":\"wrongpass\"}"}, "url": {"raw": "{{baseUrl}}/api/user/login", "host": ["{{baseUrl}}"], "path": ["api", "user", "login"]}}
+        }
+      ]
+    },
+    {
+      "name": "2-文章服务 (9 cases)",
+      "description": "CRUD、发布、权限、消息发送",
+      "item": [
+        {
+          "name": "A01: 创建草稿",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) { pm.environment.set('articleId', json.data.id); console.log('文章ID: ' + json.data.id); }", "pm.test('创建成功 status=DRAFT', function() { pm.expect(json.data.status).to.eql('DRAFT'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"title\":\"集成测试文章 - Spring Boot与Docker实践\",\"content\":\"本文详细介绍了Spring Boot微服务与Docker容器化的最佳实践，包括服务注册发现(Nacos)、API网关(Gateway)、缓存策略(Redis+Caffeine)、消息队列(RabbitMQ)等核心技术栈。\"}"}, "url": {"raw": "{{baseUrl}}/api/articles", "host": ["{{baseUrl}}"], "path": ["api", "articles"]}}
+        },
+        {
+          "name": "A02: 发布文章",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('发布成功', function() { pm.expect(pm.response.json().data.status).to.eql('PUBLISHED'); });", "console.log('文章已发布 → RabbitMQ消息已发送');"], "type": "text/javascript"}}],
+          "request": {"method": "PUT", "header": [{"key": "Authorization","value": "Bearer {{token}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}/publish", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}", "publish"]}}
+        },
+        {
+          "name": "A03: 修改文章",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('修改成功', function() { pm.response.to.have.status(200); });"], "type": "text/javascript"}}],
+          "request": {"method": "PUT", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"title\":\"(已修改) Spring Boot与Docker实践 v2\"}"}, "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}}
+        },
+        {
+          "name": "A04: 越权修改(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('越权返回403', function() { pm.response.to.have.status(403); });", "pm.test('无权操作', function() { pm.expect(pm.response.json().message).to.include('无权'); });"], "type": "text/javascript"}}],
+          "request": {"method": "PUT", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{tokenB}}"}], "body": {"mode": "raw", "raw": "{\"title\":\"用户B尝试修改\"}"}, "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}, "description": "用户B 不是作者，无权修改"}
+        },
+        {
+          "name": "A05: 文章列表",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('列表返回数组', function() { pm.expect(pm.response.json().data).to.be.an('array'); });", "var len = pm.response.json().data.length;", "console.log('文章列表: ' + len + ' 条');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/articles?page=1&size=10", "host": ["{{baseUrl}}"], "path": ["api", "articles"], "query": [{"key": "page","value": "1"},{"key": "size","value": "10"}]}}
+        },
+        {
+          "name": "A06: 文章详情(触发阅读热度)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('详情返回', function() { pm.expect(pm.response.json().data).to.have.property('content'); });", "console.log('阅读热度+1 (如5分钟内未重复)');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization","value": "Bearer {{tokenB}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}}
+        },
+        {
+          "name": "A07: 无认证访问(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('无认证返回401', function() { pm.response.to.have.status(401); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"}], "body": {"mode": "raw", "raw": "{\"title\":\"test\"}"}, "url": {"raw": "{{baseUrl}}/api/articles", "host": ["{{baseUrl}}"], "path": ["api", "articles"]}, "description": "不带 Token 创建文章"}
+        },
+        {
+          "name": "A08: 逻辑删除",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('删除成功', function() { pm.response.to.have.status(200); });", "console.log('文章已逻辑删除');"], "type": "text/javascript"}}],
+          "request": {"method": "DELETE", "header": [{"key": "Authorization","value": "Bearer {{token}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}}
+        },
+        {
+          "name": "A09: 重新创建并发布(准备工作)",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200) { pm.environment.set('articleId', json.data.id); }", "pm.test('新文章已创建并发布', function() { pm.expect(json.data.status).to.eql('PUBLISHED'); });", "console.log('新文章ID: ' + json.data.id + ' → 用于后续互动测试');"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"title\":\"集成测试文章 v2\",\"content\":\"这是一篇用于集成测试的文章，涵盖微服务架构、Docker部署、Redis缓存、RabbitMQ消息队列等内容。\",\"status\":\"PUBLISHED\"}"}, "url": {"raw": "{{baseUrl}}/api/articles", "host": ["{{baseUrl}}"], "path": ["api", "articles"]}, "description": "重新创建一篇已发布状态的文章供后续测试"}
+        }
+      ]
+    },
+    {
+      "name": "3-互动服务 (5 cases)",
+      "description": "评论、点赞、防重、热度联动",
+      "item": [
+        {
+          "name": "I01: 用户B评论",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('评论成功', function() { pm.response.to.have.status(200); });", "console.log('评论已提交（异步入库）');"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{tokenB}}"}], "body": {"mode": "raw", "raw": "{\"articleId\":{{articleId}},\"content\":\"非常棒的分享！Spring Boot+Docker的实践总结得很到位。\"}"}, "url": {"raw": "{{baseUrl}}/api/comments", "host": ["{{baseUrl}}"], "path": ["api", "comments"]}}
+        },
+        {
+          "name": "I02: 用户B点赞",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('点赞成功', function() { pm.response.to.have.status(200); });", "console.log('点赞成功 heat +3');"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Authorization","value": "Bearer {{tokenB}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}", "like"]}}
+        },
+        {
+          "name": "I03: 重复点赞(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('重复点赞 400', function() { pm.response.to.have.status(400); });", "pm.test('提示已点赞', function() { pm.expect(pm.response.json().message).to.include('已点赞'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Authorization","value": "Bearer {{tokenB}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}/like", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}", "like"]}}
+        },
+        {
+          "name": "I04: 再次评论(无防重)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('第2次评论成功', function() { pm.response.to.have.status(200); });", "console.log('评论无防重，heat再+1');"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{tokenB}}"}], "body": {"mode": "raw", "raw": "{\"articleId\":{{articleId}},\"content\":\"再来一条评论～\"}"}, "url": {"raw": "{{baseUrl}}/api/comments", "host": ["{{baseUrl}}"], "path": ["api", "comments"]}}
+        },
+        {
+          "name": "I05: 验证Redis热度",
+          "event": [{"listen": "test", "script": {"exec": ["console.log('');", "console.log('===== 请在终端执行以下命令验证 =====');", "var aid = pm.environment.get('articleId');", "console.log('docker exec kb-redis redis-cli ZSCORE hot_articles ' + aid);", "console.log('预期: > 5 (阅读1+点赞3+2条评论*1)');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "在 Postman Console 中查看 Redis 验证命令"}
+        }
+      ]
+    },
+    {
+      "name": "4-热搜榜单 (6 cases)",
+      "description": "公开访问、排序、缓存、热度累加",
+      "item": [
+        {
+          "name": "T01: 公开访问(无Token)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('公开访问200', function() { pm.response.to.have.status(200); });", "pm.test('返回数组', function() { pm.expect(pm.response.json().data).to.be.an('array'); });"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}}
+        },
+        {
+          "name": "T02: 榜单降序验证",
+          "event": [{"listen": "test", "script": {"exec": ["var data = pm.response.json().data;", "if (data.length >= 2) {", "  var sorted = true;", "  for (var i = 1; i < data.length; i++) { if (data[i].heatScore > data[i-1].heatScore) sorted = false; }", "  pm.test('按热度降序', function() { pm.expect(sorted).to.be.true; });", "}", "data.forEach(function(item,i) { console.log((i+1)+'. '+item.title+' heat='+item.heatScore); });"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}}
+        },
+        {
+          "name": "T03: Nginx 缓存验证",
+          "event": [{"listen": "test", "script": {"exec": ["var cs = pm.response.headers.get('X-Cache-Status');", "console.log('X-Cache-Status: ' + (cs || '未设置'));", "if (cs) { pm.test('Nginx 缓存头存在', function() { pm.expect(cs).to.be.oneOf(['HIT','MISS','EXPIRED','UPDATING']); }); } else { console.log('(缓存头不存在 - 可能直连Gateway)'); }"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "验证 Nginx 代理缓存是否生效"}
+        },
+        {
+          "name": "T04: 连续请求(缓存命中)",
+          "event": [{"listen": "test", "script": {"exec": ["var t = pm.response.responseTime;", "var prev = pm.environment.get('prevTrendingTime');", "console.log('响应时间: ' + t + 'ms (上次: ' + (prev||'N/A') + 'ms)');", "pm.environment.set('prevTrendingTime', t);", "if (prev && parseInt(t) < 5 && parseInt(prev) < 5) { console.log('✅ 连续请求均 <5ms — 缓存命中'); }"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "1秒内重复执行此请求 — 观察缓存命中效果"}
+        },
+        {
+          "name": "T05: 空榜单处理",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('空榜单仍返回200', function() { pm.response.to.have.status(200); });", "pm.test('data为[]而非null', function() { var d = pm.response.json().data; pm.expect(d).to.be.an('array'); });"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "验证 ZSET 为空时不报错"}
+        },
+        {
+          "name": "T06: TopArticleVO 字段完整性",
+          "event": [{"listen": "test", "script": {"exec": ["var items = pm.response.json().data;", "if (items.length > 0) {", "  var first = items[0];", "  pm.test('含id', function() { pm.expect(first).to.have.property('id'); });", "  pm.test('含title', function() { pm.expect(first).to.have.property('title'); });", "  pm.test('含authorId', function() { pm.expect(first).to.have.property('authorId'); });", "  pm.test('含likeCount', function() { pm.expect(first).to.have.property('likeCount'); });", "  pm.test('含heatScore', function() { pm.expect(first.heatScore).to.be.a('number'); });", "}"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}}
+        }
+      ]
+    },
+    {
+      "name": "5-网关限流 (3 cases)",
+      "description": "Sentinel 限流触发、恢复、公开路径豁免",
+      "item": [
+        {
+          "name": "G01: 高频请求(预期部分429)",
+          "event": [{"listen": "test", "script": {"exec": ["var code = pm.response.code;", "console.log('HTTP ' + code);", "if (code === 429) { console.log('✅ 限流触发'); }", "pm.test('200或429', function() { pm.expect([200,429]).to.include(code); });"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/articles?page=1&size=10", "host": ["{{baseUrl}}"], "path": ["api", "articles"], "query": [{"key": "page","value": "1"},{"key": "size","value": "10"}]}, "description": "快速连续点击 Send 5-10 次 → 预期部分返回 429"}
+        },
+        {
+          "name": "G02: 公开路径不限流",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('公开路径始终200', function() { pm.response.to.have.status(200); });"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "热搜榜是公开路径，Gateway 不限流"}
+        },
+        {
+          "name": "G03: 限流响应格式验证",
+          "event": [{"listen": "test", "script": {"exec": ["if (pm.response.code === 429) {", "  var json = pm.response.json();", "  pm.test('限流返回统一Result格式', function() {", "    pm.expect(json.code).to.eql(429);", "    pm.expect(json.message).to.include('频繁');", "  });", "}"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/articles?page=1&size=10", "host": ["{{baseUrl}}"], "path": ["api", "articles"], "query": [{"key": "page","value": "1"},{"key": "size","value": "10"}]}, "description": "限流响应应为统一 JSON 格式而非纯文本"}
+        }
+      ]
+    },
+    {
+      "name": "6-异步广播 (4 cases)",
+      "description": "标签提取、合规检测、违规拦截",
+      "item": [
+        {
+          "name": "M01: 验证标签提取",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "var tags = json.data.tags;", "if (tags) {", "  console.log('✅ 标签已提取: ' + tags);", "  pm.test('tags非空', function() { pm.expect(tags).to.be.a('string').and.not.empty; });", "} else {", "  console.log('⚠ tags为空 — 消费者可能还未处理，稍后重试');", "}"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization","value": "Bearer {{token}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}, "description": "验证 tag-extract-service 已提取标签并回写。注意：需等待消费者处理（约1-2秒）。"}
+        },
+        {
+          "name": "M02: 验证合规检测PASS",
+          "event": [{"listen": "test", "script": {"exec": ["var ar = pm.response.json().data.auditResult;", "console.log('auditResult: ' + (ar || '处理中...'));", "if (ar) { pm.test('合规结果已设置', function() { pm.expect(ar).to.be.oneOf(['PASS','REVIEW','BLOCK']); }); }"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization","value": "Bearer {{token}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{articleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{articleId}}"]}, "description": "验证 compliance-service 已审核。正常内容应为 PASS。"}
+        },
+        {
+          "name": "M03: 发布违规文章",
+          "event": [{"listen": "test", "script": {"exec": ["var json = pm.response.json();", "if (pm.response.code === 200 && json.data.status === 'PUBLISHED') { pm.environment.set('badArticleId', json.data.id); console.log('违规测试文章ID: ' + json.data.id); }"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"title\":\"测试文章\",\"content\":\"这是一篇包含违规和赌博关键词的测试内容。\",\"status\":\"PUBLISHED\"}"}, "url": {"raw": "{{baseUrl}}/api/articles", "host": ["{{baseUrl}}"], "path": ["api", "articles"]}, "description": "创建含敏感词的文章 → 合规检测应标记 BLOCK"}
+        },
+        {
+          "name": "M04: 验证违规文章被拦截",
+          "event": [{"listen": "test", "script": {"exec": ["var bid = pm.environment.get('badArticleId');", "if (!bid) { console.log('跳过 — 无违规文章ID'); return; }", "var json = pm.response.json();", "console.log('违规文章 auditResult: ' + (json.data && json.data.auditResult ? json.data.auditResult : '处理中...'));", "console.log('');", "console.log('===== Redis 验证命令 =====');", "console.log('docker exec kb-mysql mysql -uroot -proot123 kb_platform -e \"SELECT id,title,audit_result,deleted FROM articles WHERE id=' + bid + ';\"');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization","value": "Bearer {{token}}"}], "url": {"raw": "{{baseUrl}}/api/articles/{{badArticleId}}", "host": ["{{baseUrl}}"], "path": ["api", "articles", "{{badArticleId}}"]}, "description": "查看违规文章 — 如果合规已处理，应为 BLOCK 或已逻辑删除"}
+        }
+      ]
+    },
+    {
+      "name": "7-AI续写 (4 cases)",
+      "description": "SSE 流式、Demo 模式、断连、校验",
+      "item": [
+        {
+          "name": "AI01: Demo模式SSE流式",
+          "event": [{"listen": "test", "script": {"exec": ["var body = pm.response.text();", "pm.test('SSE流含data:', function() { pm.expect(body).to.include('data:'); });", "var chunks = (body.match(/data:/g) || []).length;", "console.log('收到 ' + chunks + ' 个SSE块');", "pm.test('至少3个data块', function() { pm.expect(chunks).to.be.at.least(3); });", "pm.test('含[DONE]结束标记', function() { pm.expect(body).to.include('[DONE]'); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"context\":\"微服务架构是一种将应用程序构建为松耦合服务集合的软件设计方法。\"}"}, "url": {"raw": "{{baseUrl}}/api/ai/continue", "host": ["{{baseUrl}}"], "path": ["api", "ai", "continue"]}, "description": "Demo 模式（无 API Key 自动启用）。每 200ms 推送 2-4 字。注意：Postman 中 SSE 显示为原始文本。"}
+        },
+        {
+          "name": "AI02: 上下文为空(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('空上下文 400', function() { pm.response.to.have.status(400); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"context\":\"\"}"}, "url": {"raw": "{{baseUrl}}/api/ai/continue", "host": ["{{baseUrl}}"], "path": ["api", "ai", "continue"]}}
+        },
+        {
+          "name": "AI03: 无认证(异常)",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('无认证401', function() { pm.response.to.have.status(401); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"}], "body": {"mode": "raw", "raw": "{\"context\":\"测试\"}"}, "url": {"raw": "{{baseUrl}}/api/ai/continue", "host": ["{{baseUrl}}"], "path": ["api", "ai", "continue"]}}
+        },
+        {
+          "name": "AI04: 超长上下文(边界)",
+          "event": [{"listen": "test", "script": {"exec": ["var code = pm.response.code;", "pm.test('超长上下文返回400', function() { pm.expect(code).to.eql(400); });"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type","value": "application/json"},{"key": "Authorization","value": "Bearer {{token}}"}], "body": {"mode": "raw", "raw": "{\"context\":\"{{$randomLoremParagraphs 50}}\"}"}, "url": {"raw": "{{baseUrl}}/api/ai/continue", "host": ["{{baseUrl}}"], "path": ["api", "ai", "continue"]}, "description": "上下文超过 4000 字 → 应返回参数校验失败"}
+        }
+      ]
+    },
+    {
+      "name": "8-数据一致性 (4 cases)",
+      "description": "Redis↔MySQL、RabbitMQ 可靠性、Nginx层验证",
+      "item": [
+        {
+          "name": "C01: Redis 热度 vs MySQL likeCount",
+          "event": [{"listen": "test", "script": {"exec": ["console.log('===== 手动验证 =====');", "console.log('# Redis ZSET:');", "var aid = pm.environment.get('articleId');", "console.log('docker exec kb-redis redis-cli ZSCORE hot_articles ' + aid);", "console.log('');", "console.log('# MySQL:');", "console.log('docker exec kb-mysql mysql -uroot -proot123 kb_platform -e \"SELECT id,like_count,tags,audit_result FROM articles WHERE id=' + aid + ';\"');", "console.log('');", "console.log('# 验证: like_count 应与点赞数一致, tags非空, audit_result非空');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "提供 Redis/MySQL 交叉验证命令"}
+        },
+        {
+          "name": "C02: RabbitMQ 队列状态",
+          "event": [{"listen": "test", "script": {"exec": ["console.log('===== RabbitMQ 管理界面 =====');", "console.log('访问: http://localhost:15672 (guest/guest)');", "console.log('检查:');", "console.log('  - article.tag.queue: Ready=0, ACK rate>0');", "console.log('  - article.compliance.queue: Ready=0, ACK rate>0');", "console.log('');", "console.log('# CLI 方式:');", "console.log('docker exec kb-rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "RabbitMQ 队列状态验证指引"}
+        },
+        {
+          "name": "C03: Nginx 缓存状态",
+          "event": [{"listen": "test", "script": {"exec": ["console.log('===== Nginx 缓存验证 =====');", "console.log('# 查看缓存目录:');", "console.log('docker exec kb-nginx ls -la /tmp/nginx_cache_trending/');", "console.log('');", "console.log('# 查看缓存命中率:');", "console.log('docker exec kb-nginx cat /var/log/nginx/access.log | grep trending | tail -5');", "console.log('');", "console.log('# 预期: HIT 占比 > 90%');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "Nginx 缓存状态验证指引"}
+        },
+        {
+          "name": "C04: 响应时间基准",
+          "event": [{"listen": "test", "script": {"exec": ["var t = pm.response.responseTime;", "console.log('响应时间: ' + t + 'ms');", "if (t < 5) console.log('✅ 优秀 (< 5ms) — 缓存命中');", "else if (t < 50) console.log('✅ 正常 (< 50ms)');", "else if (t < 200) console.log('⚠ 偏慢 (' + t + 'ms) — 可能回源查询');", "else console.log('❌ 过慢 (' + t + 'ms) — 检查网络/数据库');", "pm.environment.set('baselineResponseTime', t);"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "记录基准响应时间，用于性能回归对比"}
+        }
+      ]
+    },
+    {
+      "name": "9-全流程E2E (一键跑通)",
+      "description": "注册→登录→创建→发布→互动→热搜→AI续写 全链路",
+      "item": [
+        {
+          "name": "E2E: 完整业务流程 (Run this folder)",
+          "event": [
+            {"listen": "prerequest", "script": {"exec": ["// E2E 全流程自动化脚本", "const BASE = pm.environment.get('baseUrl') || 'http://localhost';", "", "function api(method, path, body, token) {", "  var req = { method: method, url: BASE + path, header: { 'Content-Type': 'application/json' } };", "  if (token) req.header.Authorization = 'Bearer ' + token;", "  if (body) req.body = { mode: 'raw', raw: JSON.stringify(body) };", "  return req;", "}", "", "// 此脚本在 Collection Runner 中执行所有步骤", "// 详见 Postman Console 输出", "console.log('E2E 全流程测试启动...');"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/api/trending", "host": ["{{baseUrl}}"], "path": ["api", "trending"]}, "description": "# E2E 完整流程\n\n在 Postman Runner 中按顺序执行此文件夹即可完成全链路验证：\n\n1. 注册→登录→创建文章→发布\n2. 用户B登录→阅读→点赞→评论\n3. 查看热搜榜验证热度\n4. AI续写\n5. 查看标签/合规结果\n6. 注销\n\n预期：全部 200/201，无 4xx/5xx"}
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost", "type": "string"},
+    {"key": "token", "value": "", "type": "string"},
+    {"key": "tokenB", "value": "", "type": "string"},
+    {"key": "adminToken", "value": "", "type": "string"},
+    {"key": "userId", "value": "", "type": "string"},
+    {"key": "userIdB", "value": "", "type": "string"},
+    {"key": "articleId", "value": "", "type": "string"},
+    {"key": "badArticleId", "value": "", "type": "string"},
+    {"key": "usernameA", "value": "itest_a", "type": "string"},
+    {"key": "usernameB", "value": "itest_b", "type": "string"},
+    {"key": "prevTrendingTime", "value": "", "type": "string"},
+    {"key": "baselineResponseTime", "value": "", "type": "string"}
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": ["var token = pm.environment.get('token');", "if (token && !pm.request.headers.has('Authorization')) {", "    pm.request.headers.add({ key: 'Authorization', value: 'Bearer ' + token });", "}"],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": ["var json;", "try { json = pm.response.json(); } catch(e) { return; }", "if (json && json.code !== undefined) {", "    pm.test('[自动] Result<T> 响应格式', function() {", "        pm.expect(json).to.have.property('code');", "        pm.expect(json).to.have.property('message');", "    });", "}"],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

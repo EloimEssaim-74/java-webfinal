@@ -1,0 +1,349 @@
+services:
+  # ============================================
+  # Frontend - React SPA (独立部署)
+  # ============================================
+  frontend:
+    build: ./frontend
+    container_name: kb-frontend
+    ports:
+      - "3000:80"
+    networks:
+      - kb-network
+    profiles:
+      - frontend        # 仅通过 --profile frontend 启动，默认不启动
+
+  # ============================================
+  # Nginx - 前置反向代理 (Stage 9 新增)
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: kb-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - gateway-1
+      - gateway-2
+    networks:
+      - kb-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ============================================
+  # MySQL 8.0 主库 (读写)
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: kb-mysql
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-do-db=kb_platform
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: kb_platform
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./deploy/sql/init-replication.sql:/docker-entrypoint-initdb.d/02-init-replication.sql
+    networks:
+      - kb-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ============================================
+  # MySQL 8.0 从库 (只读) — Stage 9 新增
+  # ============================================
+  mysql-slave:
+    image: mysql:8.0
+    container_name: kb-mysql-slave
+    command:
+      - --server-id=2
+      - --relay-log=relay-bin
+      - --read-only=1
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: kb_platform
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_slave_data:/var/lib/mysql
+      - ./deploy/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - kb-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ============================================
+  # Redis 7 - 缓存与排行榜
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: kb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kb-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ============================================
+  # RabbitMQ 3 - 消息队列
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: kb-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - kb-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================
+  # Nacos 2.2 - 注册/配置中心
+  # ============================================
+  nacos:
+    image: nacos/nacos-server:v2.2.0
+    container_name: kb-nacos
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - nacos_data:/home/nacos/data
+    networks:
+      - kb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ============================================
+  # Gateway Service 实例 1 — API网关
+  # ============================================
+  gateway-1:
+    build: ./backend/gateway-service
+    container_name: kb-gateway-1
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - REDIS_HOST=redis
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - kb-network
+
+  # ============================================
+  # Gateway Service 实例 2 — API网关 (Stage 9)
+  # ============================================
+  gateway-2:
+    build: ./backend/gateway-service
+    container_name: kb-gateway-2
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - REDIS_HOST=redis
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - kb-network
+
+  # ============================================
+  # User Service - 用户服务
+  # ============================================
+  user-service:
+    build: ./backend/user-service
+    container_name: kb-user-service
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_SLAVE_HOST=mysql-slave
+      - DB_SLAVE_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_READ_WRITE_SPLITTING=true
+      - REDIS_HOST=redis
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+    networks:
+      - kb-network
+
+  # ============================================
+  # Article Service - 文章服务 (可水平扩展)
+  # ============================================
+  article-service:
+    build: ./backend/article-service
+    # container_name removed for scale support (Stage 14)
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_SLAVE_HOST=mysql-slave
+      - DB_SLAVE_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_READ_WRITE_SPLITTING=true
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - kb-network
+
+  # ============================================
+  # Interact Service - 互动服务
+  # ============================================
+  interact-service:
+    build: ./backend/interact-service
+    container_name: kb-interact-service
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_SLAVE_HOST=mysql-slave
+      - DB_SLAVE_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - REDIS_HOST=redis
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - kb-network
+
+  # ============================================
+  # Tag Extract Service - AI标签提取消费者
+  # ============================================
+  tag-extract-service:
+    build: ./backend/tag-extract-service
+    container_name: kb-tag-extract
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - RABBITMQ_HOST=rabbitmq
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      article-service:
+        condition: service_started
+    networks:
+      - kb-network
+
+  # ============================================
+  # Compliance Service - AI合规检测消费者
+  # ============================================
+  compliance-service:
+    build: ./backend/compliance-service
+    container_name: kb-compliance
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - RABBITMQ_HOST=rabbitmq
+      - JAVA_OPTS=-Xms128m -Xmx256m -XX:+UseG1GC
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      article-service:
+        condition: service_started
+    networks:
+      - kb-network
+
+  # ============================================
+  # AI Assistant Service - AI流式创作辅助
+  # ============================================
+  ai-assistant-service:
+    build: ./backend/ai-assistant-service
+    container_name: kb-ai-assistant
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      - AI_DEMO_MODE=${AI_DEMO_MODE:-false}
+      - JAVA_OPTS=-Xms128m -Xmx512m -XX:+UseG1GC
+    depends_on:
+      nacos:
+        condition: service_started
+    networks:
+      - kb-network
+
+volumes:
+  mysql_data:
+  mysql_slave_data:
+  redis_data:
+  rabbitmq_data:
+  nacos_data:
+
+networks:
+  kb-network:
+    driver: bridge

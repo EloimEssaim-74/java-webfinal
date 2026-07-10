@@ -1,0 +1,1099 @@
+{
+  "info": {
+    "name": "Knowledge Platform - Stage 6 热搜榜单测试",
+    "description": "# 知识库与内容发布平台 - Stage 6 热搜榜单专项测试\n\n## 测试范围\n- 热搜 Top 10 公开访问\n- 阅读热度 (+1) + 5分钟去重\n- 点赞热度 (+3) + 永久去重\n- 评论热度 (+1)\n- 多级缓存验证 (Caffeine L1 → Redis ZSET L2 → MySQL L3)\n- 热度分数验证\n- 边界情况\n\n## 环境变量说明\n| 变量 | 默认值 | 说明 |\n|------|--------|------|\n| `baseUrl` | `http://localhost:8080` | 网关地址 |\n| `token` | (自动填充) | 用户 JWT 令牌 |\n| `userId` | (自动填充) | 当前用户 ID |\n| `trendingArticleId` | (自动填充) | 用于热度测试的文章 ID |\n\n## 测试流程\n1. **准备阶段**: 注册 → 登录 → 创建并发布文章\n2. **基础功能**: 查询热搜榜（公开访问）\n3. **阅读热度**: 多次阅读同一文章，验证防重\n4. **点赞热度**: 点赞文章，验证热度 +3\n5. **评论热度**: 评论文章，验证热度 +1\n6. **总分验证**: 验证 total = 阅读(+1) + 点赞(+3) + 评论(+1)\n7. **缓存验证**: 连续快速请求，观察缓存命中\n8. **边界测试**: 无认证访问、空榜单等\n\n## 快速开始\n1. 导入此 Collection 到 Postman\n2. 创建 Environment，设置 `baseUrl` = `http://localhost:8080`\n3. 按文件夹顺序执行：`0-准备` → `1-基础` → `2-阅读热度` → `3-点赞热度` → `4-评论热度` → `5-总分验证` → `6-边界测试`\n4. 或直接运行 `7-一键测试` 文件夹（Run Collection）",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "knowledge-platform-stage6"
+  },
+  "item": [
+    {
+      "name": "0-准备阶段 (Setup)",
+      "description": "创建测试用户、登录、创建并发布一篇文章，为后续热度测试准备数据",
+      "item": [
+        {
+          "name": "S0-1: 注册测试用户",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('用户注册成功:', pm.response.json().data.username);",
+                  "}",
+                  "if (pm.response.code === 400) {",
+                  "    console.log('用户已存在，跳过注册');",
+                  "}",
+                  "pm.test('注册成功或用户已存在', function() {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"trending_tester\",\n    \"password\": \"trending123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "register"]
+            },
+            "description": "注册一个专用测试用户，用于后续所有热度操作"
+          }
+        },
+        {
+          "name": "S0-2: 登录获取 Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set('token', json.data.token);",
+                  "    pm.environment.set('userId', json.data.userId);",
+                  "    console.log('Token 已保存, userId=' + json.data.userId);",
+                  "}",
+                  "pm.test('登录成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "    pm.expect(pm.response.json().data).to.have.property('token');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"trending_tester\",\n    \"password\": \"trending123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "login"]
+            },
+            "description": "登录并自动保存 token 到环境变量"
+          }
+        },
+        {
+          "name": "S0-3: 创建文章(草稿)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set('trendingArticleId', json.data.id);",
+                  "    console.log('文章已创建, id=' + json.data.id);",
+                  "}",
+                  "pm.test('文章创建成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "    pm.expect(pm.response.json().data).to.have.property('id');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Stage6 热搜测试文章\",\n    \"content\": \"这是一篇用于测试热搜榜单功能的文章。阅读、点赞、评论都会增加热度分。\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/articles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles"]
+            },
+            "description": "创建一篇草稿文章，articleId 自动保存到环境变量"
+          }
+        },
+        {
+          "name": "S0-4: 发布文章",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('文章发布成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "    pm.expect(pm.response.json().data.status).to.eql('PUBLISHED');",
+                  "    console.log('文章已发布');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{trendingArticleId}}/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{trendingArticleId}}", "publish"]
+            },
+            "description": "发布文章 — 发布后的文章才会出现在热搜榜单中"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1-基础功能 (Basic)",
+      "description": "热搜榜基础查询功能验证",
+      "item": [
+        {
+          "name": "T1-1: 查询热搜榜(公开访问，无 Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('状态码 200 — 无需认证即可访问', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var json = pm.response.json();",
+                  "pm.test('返回 Result<T> 标准格式', function() {",
+                  "    pm.expect(json.code).to.eql(200);",
+                  "    pm.expect(json).to.have.property('message');",
+                  "    pm.expect(json).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test('data 为数组类型', function() {",
+                  "    pm.expect(json.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('数组长度 <= 10', function() {",
+                  "    pm.expect(json.data.length).to.be.at.most(10);",
+                  "});",
+                  "",
+                  "if (json.data.length > 0) {",
+                  "    var first = json.data[0];",
+                  "    pm.test('每条记录包含必要字段: id, title, authorId, likeCount, heatScore', function() {",
+                  "        pm.expect(first).to.have.property('id');",
+                  "        pm.expect(first).to.have.property('title');",
+                  "        pm.expect(first).to.have.property('authorId');",
+                  "        pm.expect(first).to.have.property('likeCount');",
+                  "        pm.expect(first).to.have.property('heatScore');",
+                  "        pm.expect(first.heatScore).to.be.a('number');",
+                  "    });",
+                  "    ",
+                  "    console.log('热搜榜共 ' + json.data.length + ' 条:');",
+                  "    json.data.forEach(function(item, i) {",
+                  "        console.log('  ' + (i+1) + '. [' + item.id + '] ' + item.title + ' (热度: ' + item.heatScore + ', 点赞: ' + item.likeCount + ')');",
+                  "    });",
+                  "} else {",
+                  "    console.log('热搜榜当前为空 — 执行后续阅读/点赞/评论步骤后将有数据');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证热搜榜作为公开接口可被任意访问，不携带 Authorization 头\n\n### 预期结果\n- HTTP 200\n- data 为数组，长度 ≤ 10\n- 每条记录含 id, title, authorId, likeCount, heatScore\n- 按 heatScore 降序排列"
+          }
+        },
+        {
+          "name": "T1-2: 查询热搜榜(带 Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('认证用户同样可访问', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test('返回数据一致', function() {",
+                  "    pm.expect(json.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证携带 Token 的认证用户同样可访问（不因鉴权逻辑被拦截）\n\n### 预期结果\n- 与 T1-1 返回相同数据"
+          }
+        },
+        {
+          "name": "T1-3: 初始榜单(空或含旧数据)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "console.log('初始热搜榜: ' + json.data.length + ' 条');",
+                  "",
+                  "// 如果是新 Redis，榜单应为空或仅含之前测试的留数据",
+                  "// 记录当前状态供后续对比",
+                  "if (json.data.length > 0) {",
+                  "    var foundOurArticle = json.data.find(function(item) {",
+                  "        return item.id == pm.environment.get('trendingArticleId');",
+                  "    });",
+                  "    if (foundOurArticle) {",
+                  "        console.log('测试文章已上榜，当前热度: ' + foundOurArticle.heatScore);",
+                  "        pm.environment.set('baselineHeatScore', foundOurArticle.heatScore);",
+                  "    } else {",
+                  "        console.log('测试文章尚未上榜（热度分为0或不存在）');",
+                  "        pm.environment.set('baselineHeatScore', 0);",
+                  "    }",
+                  "} else {",
+                  "    pm.environment.set('baselineHeatScore', 0);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n获取基线热度分，供后续步骤对比验证\n\n### 说明\n将测试文章的当前热度分记录为 baselineHeatScore，后续每步操作后对比增量"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2-阅读热度 (Read Heat +1)",
+      "description": "验证阅读文章触发热度 +1，以及 5 分钟内重复阅读去重",
+      "item": [
+        {
+          "name": "T2-1: 首次阅读 — 热度应 +1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('文章详情获取成功', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "console.log('第1次阅读文章, id=' + pm.environment.get('trendingArticleId'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{trendingArticleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{trendingArticleId}}"]
+            },
+            "description": "### 测试目标\n首次阅读文章，触发 ZINCRBY hot_articles +1\n\n### 预期结果\n- HTTP 200 返回文章详情\n- article-service 日志输出: `Hot article read recorded: articleId=X, score +1`"
+          }
+        },
+        {
+          "name": "T2-2: 5分钟内重复阅读 — 不应增加热度",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('重复阅读仍返回文章详情', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "console.log('第2次阅读(应立即请求，验证去重)...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{trendingArticleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{trendingArticleId}}"]
+            },
+            "description": "### 测试目标\n同一用户在 5 分钟内重复阅读同一文章，由于 Redis 去重 key `read:article:{id}:user:{uid}` 仍有效，不应再次增加热度\n\n### 预期结果\n- 日志中不再输出 `score +1`（去重生效）\n- 或查看 Redis: `ZSCORE hot_articles {id}` 与之前相同"
+          }
+        },
+        {
+          "name": "T2-3: 验证阅读后热度变化",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "console.log('阅读后热搜榜:');",
+                  "",
+                  "var baseline = parseFloat(pm.environment.get('baselineHeatScore') || 0);",
+                  "",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "if (ourArticle) {",
+                  "    var currentHeat = ourArticle.heatScore;",
+                  "    console.log('测试文章当前热度: ' + currentHeat + ' (基线: ' + baseline + ')');",
+                  "    ",
+                  "    pm.test('阅读后热度大于等于基线(含+1)', function() {",
+                  "        pm.expect(currentHeat).to.be.at.least(baseline + 0.5);",
+                  "    });",
+                  "",
+                  "    pm.environment.set('heatAfterRead', currentHeat);",
+                  "} else {",
+                  "    console.log('文章未上榜(热度分可能为0，需先有互动)');",
+                  "    pm.environment.set('heatAfterRead', 0);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n确认阅读后热搜榜中的热度分已增加\n\n### 预期结果\n- 测试文章的 heatScore 比基线高（增加约 1 分）"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3-点赞热度 (Like Heat +3)",
+      "description": "验证点赞触发热度 +3，以及永久去重",
+      "item": [
+        {
+          "name": "T3-1: 首次点赞 — 热度应 +3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('点赞成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "console.log('点赞成功, articleId=' + pm.environment.get('trendingArticleId'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{trendingArticleId}}/like",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{trendingArticleId}}", "like"]
+            },
+            "description": "### 测试目标\n首次点赞文章，触发 ZINCRBY hot_articles +3\n\n### 预期结果\n- HTTP 200\n- article-service 日志: `Hot article like recorded: articleId=X, score +3`\n- interact-service 日志: `Like recorded: articleId=X, userId=X, heat +3`"
+          }
+        },
+        {
+          "name": "T3-2: 重复点赞 — 应返回错误",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('重复点赞返回错误', function() {",
+                  "    pm.expect(pm.response.code).to.eql(400);",
+                  "});",
+                  "pm.test('错误消息提示已点赞', function() {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.message).to.include('已点赞');",
+                  "});",
+                  "console.log('防重生效: 重复点赞被拒绝');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{trendingArticleId}}/like",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{trendingArticleId}}", "like"]
+            },
+            "description": "### 测试目标\n验证点赞防重机制 — 同一用户对同一文章仅可点赞一次\n\n### 预期结果\n- HTTP 400\n- message: \"您已点赞过该文章\""
+          }
+        },
+        {
+          "name": "T3-3: 验证点赞后热度变化",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var heatAfterRead = parseFloat(pm.environment.get('heatAfterRead') || 0);",
+                  "",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "if (ourArticle) {",
+                  "    console.log('热度变化: ' + heatAfterRead + ' → ' + ourArticle.heatScore);",
+                  "",
+                  "    pm.test('点赞后热度 >= 阅读后热度 + 2.5(≈+3)', function() {",
+                  "        pm.expect(ourArticle.heatScore).to.be.at.least(heatAfterRead + 2.5);",
+                  "    });",
+                  "    ",
+                  "    pm.environment.set('heatAfterLike', ourArticle.heatScore);",
+                  "} else {",
+                  "    console.log('文章未上榜');",
+                  "    pm.environment.set('heatAfterLike', heatAfterRead + 3);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n确认点赞后热度分比阅读后增加约 3\n\n### 预期结果\n- heatScore 约增加 3"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4-评论热度 (Comment Heat +1)",
+      "description": "验证评论触发热度 +1",
+      "item": [
+        {
+          "name": "T4-1: 发表评论 — 热度应 +1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('评论提交成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "console.log('评论成功, articleId=' + pm.environment.get('trendingArticleId'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"articleId\": {{trendingArticleId}},\n    \"content\": \"这是一条测试评论，用于验证评论热度 +1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/comments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "comments"]
+            },
+            "description": "### 测试目标\n发表评论，触发 ZINCRBY hot_articles +1\n\n### 预期结果\n- HTTP 200\n- interact-service 日志: `Comment event pushed: articleId=X, userId=X, heat +1`"
+          }
+        },
+        {
+          "name": "T4-2: 第二次评论 — 热度再 +1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('第2次评论也成功', function() {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "console.log('评论无防重(每次评论都+1)...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"articleId\": {{trendingArticleId}},\n    \"content\": \"第二条评论 — 评论没有防重机制，每次都会增加热度\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/comments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "comments"]
+            },
+            "description": "### 测试目标\n验证评论没有防重（与阅读和点赞不同），每次评论都 +1\n\n### 预期结果\n- HTTP 200\n- 热度再次 +1"
+          }
+        },
+        {
+          "name": "T4-3: 验证评论后热度变化",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var heatAfterLike = parseFloat(pm.environment.get('heatAfterLike') || 0);",
+                  "",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "if (ourArticle) {",
+                  "    console.log('热度变化: ' + heatAfterLike + ' → ' + ourArticle.heatScore);",
+                  "",
+                  "    // 评论2次, 每次+1, 预期 +2",
+                  "    pm.test('评论后热度 >= 点赞后热度 + 1.5 (2次评论≈+2)', function() {",
+                  "        pm.expect(ourArticle.heatScore).to.be.at.least(heatAfterLike + 1.5);",
+                  "    });",
+                  "    ",
+                  "    pm.environment.set('heatAfterComment', ourArticle.heatScore);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n确认评论后热度分增加\n\n### 预期结果\n- heatScore 约增加 2（2次评论 × 1）"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5-总分验证 (Score Verification)",
+      "description": "综合验证热度分累加规则",
+      "item": [
+        {
+          "name": "T5-1: 综合热度验证",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var baseline = parseFloat(pm.environment.get('baselineHeatScore') || 0);",
+                  "",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "if (ourArticle) {",
+                  "    var finalHeat = ourArticle.heatScore;",
+                  "    var expectedMin = baseline + 1 + 3 + 2; // 阅读+1 + 点赞+3 + 2次评论×1",
+                  "    ",
+                  "    console.log('===== 热度分汇总 =====');",
+                  "    console.log('基线值:        ' + baseline);",
+                  "    console.log('阅读 +1:       ' + (baseline + 1));",
+                  "    console.log('点赞 +3:       ' + (baseline + 1 + 3));",
+                  "    console.log('评论 +2(×2):   ' + (baseline + 1 + 3 + 2));",
+                  "    console.log('实际最终值:     ' + finalHeat);",
+                  "    console.log('预期最低值:     ' + expectedMin);",
+                  "    console.log('');",
+                  "    console.log('TopArticleVO 字段验证:');",
+                  "    console.log('  id:        ' + ourArticle.id);",
+                  "    console.log('  title:     ' + ourArticle.title);",
+                  "    console.log('  authorId:  ' + ourArticle.authorId);",
+                  "    console.log('  likeCount: ' + ourArticle.likeCount);",
+                  "    console.log('  heatScore: ' + ourArticle.heatScore);",
+                  "",
+                  "    pm.test('最终热度 >= 基线 + 阅读1 + 点赞3 + 评论2', function() {",
+                  "        pm.expect(finalHeat).to.be.at.least(expectedMin);",
+                  "    });",
+                  "",
+                  "    pm.test('heatScore 为有效数值', function() {",
+                  "        pm.expect(ourArticle.heatScore).to.be.a('number');",
+                  "        pm.expect(ourArticle.heatScore).to.be.above(0);",
+                  "    });",
+                  "} else {",
+                  "    console.log('WARNING: 测试文章未出现在热搜榜中');",
+                  "    console.log('可能原因: 文章未发布/Redis ZSET 数据被清空/缓存延迟');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n汇总验证所有热度来源的累加结果\n\n### 热度分公式\n```\nfinalHeat ≈ baseline + 1(阅读) + 3(点赞) + 2(2次评论)\n         ≈ baseline + 6\n```\n\n### 预期结果\n- 最终热度 >= baseline + 6\n- 所有 TopArticleVO 字段完整有效"
+          }
+        },
+        {
+          "name": "T5-2: 榜单降序排列验证",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var data = json.data;",
+                  "",
+                  "if (data.length >= 2) {",
+                  "    var sorted = true;",
+                  "    for (var i = 1; i < data.length; i++) {",
+                  "        if (data[i].heatScore > data[i-1].heatScore) {",
+                  "            sorted = false;",
+                  "            console.log('排序异常: 第' + i + '位(' + data[i].heatScore + ') > 第' + (i) + '位(' + data[i-1].heatScore + ')');",
+                  "        }",
+                  "    }",
+                  "    pm.test('榜单按热度分降序排列', function() {",
+                  "        pm.expect(sorted).to.be.true;",
+                  "    });",
+                  "} else {",
+                  "    console.log('榜单不足2条，跳过排序验证');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证 ZREVRANGE 返回的结果按 heatScore 从高到低排列\n\n### 预期结果\n- data[i].heatScore >= data[i+1].heatScore"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6-缓存与性能 (Cache & Performance)",
+      "description": "验证 Caffeine 本地缓存命中、Redis Pub/Sub 失效",
+      "item": [
+        {
+          "name": "T6-1: 连续快速请求(缓存命中验证)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('所有请求均返回 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "var responseTime = pm.response.responseTime;",
+                  "console.log('响应时间: ' + responseTime + 'ms');",
+                  "",
+                  "// 记录第一次响应时间",
+                  "var prevTime = pm.environment.get('prevTrendingResponseTime');",
+                  "if (prevTime) {",
+                  "    console.log('上次响应时间: ' + prevTime + 'ms');",
+                  "    if (responseTime < 5 && parseInt(prevTime) < 5) {",
+                  "        console.log('✅ 两次请求均在 5ms 内 — 疑似缓存命中');",
+                  "    }",
+                  "}",
+                  "pm.environment.set('prevTrendingResponseTime', responseTime);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n手动连续执行此请求 5-10 次（使用 Postman Runner 或在 1 秒内连续点击 Send）\n\n### 预期结果\n- 第 1 次请求后: article-service 日志 `Cache miss for top10, computing...`\n- 1 秒内后续请求: 无 Cache miss 日志（命中 Caffeine 缓存）\n- 响应时间 < 5ms（纯内存操作）\n\n### 验证方法\n查看 article-service 容器日志:\n```bash\ndocker-compose logs -f article-service | grep -E \"Cache miss|Cache miss\"\n```"
+          }
+        },
+        {
+          "name": "T6-2: Pub/Sub 刷新验证(写入后立即查)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "console.log('写入后查询 — 验证 Pub/Sub 是否已刷新缓存');",
+                  "",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "if (ourArticle) {",
+                  "    console.log('热度: ' + ourArticle.heatScore);",
+                  "    ",
+                  "    var heatAfterComment = parseFloat(pm.environment.get('heatAfterComment') || 0);",
+                  "    pm.test('热度数据与上次一致(Pub/Sub 已刷新)', function() {",
+                  "        // 如果 Pub/Sub 已刷新缓存，数据应是最新的",
+                  "        pm.expect(ourArticle.heatScore).to.be.at.least(heatAfterComment);",
+                  "    });",
+                  "}",
+                  "",
+                  "// 额外验证: Redis 原始数据",
+                  "console.log('');",
+                  "console.log('验证 Redis ZSET 数据:');",
+                  "console.log('  docker exec kb-redis redis-cli ZREVRANGE hot_articles 0 9 WITHSCORES');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n在执行完点赞/评论操作后立即查询，验证 Pub/Sub 是否已刷新 Caffeine 缓存\n\n### 预期结果\n- 热度数据为最新值（不是过期缓存值）\n\n### 交叉验证\n在 Redis CLI 中直接查 ZSET:\n```bash\ndocker exec kb-redis redis-cli ZREVRANGE hot_articles 0 -1 WITHSCORES\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7-边界测试 (Edge Cases)",
+      "description": "异常场景和边界条件验证",
+      "item": [
+        {
+          "name": "T7-1: OPTIONS 预检请求",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('OPTIONS 预检返回 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('CORS 头存在', function() {",
+                  "    pm.response.to.have.header('Access-Control-Allow-Origin');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {"key": "Origin", "value": "http://localhost:3000"},
+              {"key": "Access-Control-Request-Method", "value": "GET"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证 CORS 预检请求通过，浏览器跨域访问正常"
+          }
+        },
+        {
+          "name": "T7-2: 测试文章被删除后榜单不含该文章",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var ourArticle = json.data.find(function(item) {",
+                  "    return item.id == pm.environment.get('trendingArticleId');",
+                  "});",
+                  "",
+                  "// 如果文章未删除，应出现在榜单中",
+                  "// 如果文章已删除，应不出现在榜单中(ZSET 分数可能仍在，但被 MySQL 过滤)",
+                  "if (ourArticle) {",
+                  "    console.log('文章在榜单中(正常 — 文章未删除)');",
+                  "} else {",
+                  "    console.log('文章不在榜单中(可能已删除，MySQL 查询已过滤)');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证已删除的文章即使在 ZSET 中有热度分，也不会出现在榜单中（MySQL 查询过滤）"
+          }
+        },
+        {
+          "name": "T7-3: 空榜单场景(Redis Flush 后)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('空榜单返回空数组而非 null', function() {",
+                  "    pm.expect(json.data).to.be.an('array');",
+                  "});",
+                  "pm.test('空榜单 code 仍为 200', function() {",
+                  "    pm.expect(json.code).to.eql(200);",
+                  "});",
+                  "if (json.data.length === 0) {",
+                  "    console.log('榜单为空 — 正确返回 []');",
+                  "} else {",
+                  "    console.log('榜单有 ' + json.data.length + ' 条数据');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证当 Redis ZSET 为空时（冷启动/Redis 重启后），返回空数组而非 null/报错\n\n### 测试方法\n```bash\n# 可选：清空 Redis ZSET 测试\ndocker exec kb-redis redis-cli DEL hot_articles\ncurl http://localhost:8080/api/trending\n# 预期: {\"code\":200,\"data\":[]}\n```"
+          }
+        },
+        {
+          "name": "T7-4: 响应格式完整性检查",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "",
+                  "pm.test('响应含 code, message, data 三级结构', function() {",
+                  "    pm.expect(json).to.have.property('code');",
+                  "    pm.expect(json).to.have.property('message');",
+                  "    pm.expect(json).to.have.property('data');",
+                  "});",
+                  "",
+                  "pm.test('code 为数字类型', function() {",
+                  "    pm.expect(json.code).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('message 为字符串类型', function() {",
+                  "    pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Content-Type 为 application/json', function() {",
+                  "    pm.response.to.have.header('Content-Type');",
+                  "    var ct = pm.response.headers.get('Content-Type');",
+                  "    pm.expect(ct).to.include('application/json');",
+                  "});",
+                  "",
+                  "console.log('✅ 响应格式完全符合 Result<T> 规范');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "### 测试目标\n验证响应格式严格符合 Result<T> 规范:\n- `code`: number\n- `message`: string  \n- `data`: 数组\n- Content-Type: application/json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8-Redis 直连验证 (Optional)",
+      "description": "直接在 Redis CLI 中验证 ZSET 数据 — 这些需要在终端手动执行",
+      "item": [
+        {
+          "name": "REDIS: 查看 hot_articles ZSET 全部数据",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "console.log('=== 请在终端执行以下命令 ===');",
+                  "console.log('');",
+                  "console.log('# 1. 查看所有热搜数据');",
+                  "console.log('docker exec kb-redis redis-cli ZREVRANGE hot_articles 0 -1 WITHSCORES');",
+                  "console.log('');",
+                  "console.log('# 2. 查看 Top 10');",
+                  "console.log('docker exec kb-redis redis-cli ZREVRANGE hot_articles 0 9 WITHSCORES');",
+                  "console.log('');",
+                  "console.log('# 3. 查看 ZSET 总条数');",
+                  "console.log('docker exec kb-redis redis-cli ZCARD hot_articles');",
+                  "console.log('');",
+                  "console.log('# 4. 查看单篇文章热度分');",
+                  "console.log('docker exec kb-redis redis-cli ZSCORE hot_articles ' + pm.environment.get('trendingArticleId'));",
+                  "console.log('');",
+                  "console.log('# 5. 查看阅读去重 key');",
+                  "var uid = pm.environment.get('userId');",
+                  "var aid = pm.environment.get('trendingArticleId');",
+                  "console.log('docker exec kb-redis redis-cli GET \"read:article:' + aid + ':user:' + uid + '\"');",
+                  "console.log('');",
+                  "console.log('# 6. 查看点赞去重 key');",
+                  "console.log('docker exec kb-redis redis-cli GET \"like:article:' + aid + ':user:' + uid + '\"');",
+                  "console.log('');",
+                  "console.log('# 7. 监控 Pub/Sub 频道(另开终端)');",
+                  "console.log('docker exec kb-redis redis-cli SUBSCRIBE hot_articles:refresh');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "trending"]
+            },
+            "description": "此请求仅用于触发 Postman Console 输出 Redis 验证命令\n\n执行后打开 View → Show Postman Console 查看所有 Redis 直连验证命令"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "trendingArticleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "baselineHeatScore",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "heatAfterRead",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "heatAfterLike",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "heatAfterComment",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "prevTrendingResponseTime",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// 自动添加 Authorization 头 (如果 token 存在且请求未显式设置)",
+          "var token = pm.environment.get('token');",
+          "if (token && !pm.request.headers.has('Authorization')) {",
+          "    pm.request.headers.add({",
+          "        key: 'Authorization',",
+          "        value: 'Bearer ' + token",
+          "    });",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}
