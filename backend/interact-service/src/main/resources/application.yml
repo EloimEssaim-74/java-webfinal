@@ -46,3 +46,11 @@ mybatis-plus:
 logging:
   level:
     com.kb.interact: DEBUG
+
+# SpringDoc Swagger UI — 经 Gateway 路由访问
+# http://localhost/api/comments/swagger-ui.html
+springdoc:
+  swagger-ui:
+    path: /api/comments/swagger-ui.html
+  api-docs:
+    path: /api/comments/v3/api-docs

@@ -71,16 +71,10 @@ logging:
     org.springframework.cloud.gateway: INFO
 
 # ============================================
-# SpringDoc OpenAPI Gateway 聚合
+# SpringDoc OpenAPI — 各服务独立暴露 (经 Gateway 路由)
+# 访问: http://localhost/api/user/swagger-ui.html 等
+# AuthPathMatcher 已将 /swagger-ui, /v3/api-docs 加入公开白名单
 # ============================================
 springdoc:
-  swagger-ui:
-    urls:
-      - name: user-service
-        url: /api/user/v3/api-docs
-      - name: article-service
-        url: /api/articles/v3/api-docs
-      - name: interact-service
-        url: /api/comments/v3/api-docs
   api-docs:
     enabled: true

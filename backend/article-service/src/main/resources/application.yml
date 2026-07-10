@@ -93,3 +93,11 @@ hot-articles:
 logging:
   level:
     com.kb.article: DEBUG
+
+# SpringDoc Swagger UI — 经 Gateway 路由访问
+# http://localhost/api/articles/swagger-ui.html
+springdoc:
+  swagger-ui:
+    path: /api/articles/swagger-ui.html
+  api-docs:
+    path: /api/articles/v3/api-docs

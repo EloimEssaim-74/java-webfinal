@@ -15,7 +15,18 @@ public class AuthPathMatcher {
     );
 
     private static final Set<String> PUBLIC_PREFIXES = Set.of(
-            "/api/trending"
+            "/api/trending",
+            "/swagger-ui",
+            "/v3/api-docs",
+            "/webjars",
+            "/api/user/swagger-ui",
+            "/api/user/v3/api-docs",
+            "/api/article/swagger-ui",
+            "/api/article/v3/api-docs",
+            "/api/articles/swagger-ui",
+            "/api/articles/v3/api-docs",
+            "/api/comments/swagger-ui",
+            "/api/comments/v3/api-docs"
     );
 
     public boolean isPublicPath(String path) {

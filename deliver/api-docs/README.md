@@ -1,10 +1,20 @@
 # Swagger API 文档
 
-启动项目后访问: http://localhost/api/user/swagger-ui.html
+## 访问地址
 
-Gateway 聚合了以下服务的 API 文档:
-- user-service: /api/user/v3/api-docs
-- article-service: /api/articles/v3/api-docs
-- interact-service: /api/comments/v3/api-docs
+| 服务 | Swagger UI 地址 | API Docs 地址 |
+|------|----------------|---------------|
+| user-service | http://localhost/api/user/swagger-ui.html | http://localhost/api/user/v3/api-docs |
+| article-service | http://localhost/api/articles/swagger-ui.html | http://localhost/api/articles/v3/api-docs |
+| interact-service | http://localhost/api/comments/swagger-ui.html | http://localhost/api/comments/v3/api-docs |
 
-SpringDoc OpenAPI 2.6.0, 配置见 backend/common/src/main/java/com/kb/common/config/SwaggerConfig.java
+## 技术栈
+
+- SpringDoc OpenAPI 2.6.0
+- 配置: `backend/*/src/main/resources/application.yml` (springdoc.*)
+- 网关白名单: `backend/gateway-service/.../AuthPathMatcher.java`
+- 公共配置: `backend/common/.../SwaggerConfig.java`
+
+## 注意
+
+各服务通过 Gateway 路由访问。AuthPathMatcher 已将 Swagger 路径加入公开白名单, 无需 JWT Token。
