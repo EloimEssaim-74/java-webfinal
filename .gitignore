@@ -17,6 +17,14 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Frontend
+node_modules/
+dist/
+
+# Vim
+*.swp
+*.swo
+
 # Logs
 logs/
 *.log
